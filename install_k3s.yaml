@@ -1,6 +1,6 @@
 ---
 - name: Instalar y Configurar K3s en el Clúster
-  hosts: nodos
+  hosts: all
   become: true
 
   vars:
@@ -9,30 +9,18 @@
     k3s_server_ip: "10.17.4.21"  # Dirección IP del primer nodo maestro
 
   tasks:
-    - name: Descargar el binario de K3s
-      ansible.builtin.get_url:
-        url: "{{ k3s_url }}"
-        dest: /usr/local/bin/k3s
-        mode: '0755'
-      when: inventory_hostname in groups['masters'] + groups['workers']
-
-    - name: Crear directorio de binarios en Flatcar
-      ansible.builtin.file:
-        path: /opt/bin
-        state: directory
-        mode: '0755'
+    - name: Descargar e instalar el binario de K3s en /opt/bin (sin Python)
+      raw: |
+        mkdir -p /opt/bin
+        curl -Lo /opt/bin/k3s {{ k3s_url }}
+        chmod +x /opt/bin/k3s
       when: ansible_os_family == "Flatcar"
 
-    - name: Mover K3s a /opt/bin en Flatcar
-      ansible.builtin.command: mv /usr/local/bin/k3s /opt/bin/k3s
-      when: ansible_os_family == "Flatcar"
-
-    - name: Crear enlaces simbólicos para herramientas de K3s
-      ansible.builtin.command: ln -sf /opt/bin/k3s /opt/bin/{{ item }}
-      loop:
-        - kubectl
-        - crictl
-        - ctr
+    - name: Crear enlaces simbólicos para herramientas de K3s (sin Python)
+      raw: |
+        ln -sf /opt/bin/k3s /opt/bin/kubectl
+        ln -sf /opt/bin/k3s /opt/bin/crictl
+        ln -sf /opt/bin/k3s /opt/bin/ctr
       when: ansible_os_family == "Flatcar"
 
     - name: Configurar servicio K3s en el primer nodo maestro
