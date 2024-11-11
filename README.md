@@ -93,4 +93,3 @@ Este proyecto está licenciado bajo la **Licencia MIT**.
 Para cualquier duda o problema, por favor abre un issue en el repositorio o contacta al mantenedor del proyecto.
 
 **Mantenedor del Proyecto:** [Victor Galvez](https://github.com/vhgalvez)
-
