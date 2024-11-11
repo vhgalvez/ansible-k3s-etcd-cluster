@@ -92,4 +92,23 @@ Este proyecto está licenciado bajo la **Licencia MIT**.
 ## Contacto
 Para cualquier duda o problema, por favor abre un issue en el repositorio o contacta al mantenedor del proyecto.
 
+
+# ansible-k3s-etcd-cluster
+
+Ansible project to deploy a Kubernetes (K3s) cluster with etcd as the datastore, designed for Flatcar Container Linux nodes. This playbook automates the installation and configuration of a resilient K3s cluster with a dedicated control plane and worker nodes.
+
+## Project Structure
+
+```plaintext
+.
+├── install_k3s.yaml                # Main Ansible playbook
+├── inventory.ini                   # Inventory of nodes
+├── README.md                       # Project documentation
+└── templates                       # Systemd service templates
+    ├── k3s_agent.service.j2        # Template for worker nodes
+    ├── k3s_master_join.service.j2  # Template for additional master nodes
+    └── k3s_master.service.j2       # Template for the first master node
+```
+
+
 **Mantenedor del Proyecto:** [Victor Galvez](https://github.com/vhgalvez)
