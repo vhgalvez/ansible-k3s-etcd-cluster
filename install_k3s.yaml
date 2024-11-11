@@ -1,0 +1,79 @@
+---
+- name: Instalar y Configurar K3s en el Clúster
+  hosts: nodos
+  become: true
+
+  vars:
+    k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
+    k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
+    k3s_server_ip: "10.17.4.21"  # Dirección IP del primer nodo maestro
+
+  tasks:
+    - name: Descargar el binario de K3s
+      ansible.builtin.get_url:
+        url: "{{ k3s_url }}"
+        dest: /usr/local/bin/k3s
+        mode: '0755'
+      when: inventory_hostname in groups['masters'] + groups['workers']
+
+    - name: Crear directorio de binarios en Flatcar
+      ansible.builtin.file:
+        path: /opt/bin
+        state: directory
+        mode: '0755'
+      when: ansible_os_family == "Flatcar"
+
+    - name: Mover K3s a /opt/bin en Flatcar
+      ansible.builtin.command: mv /usr/local/bin/k3s /opt/bin/k3s
+      when: ansible_os_family == "Flatcar"
+
+    - name: Crear enlaces simbólicos para herramientas de K3s
+      ansible.builtin.command: ln -sf /opt/bin/k3s /opt/bin/{{ item }}
+      loop:
+        - kubectl
+        - crictl
+        - ctr
+      when: ansible_os_family == "Flatcar"
+
+    - name: Configurar servicio K3s en el primer nodo maestro
+      ansible.builtin.template:
+        src: templates/k3s_master.service.j2
+        dest: /etc/systemd/system/k3s.service
+      when: inventory_hostname == k3s_server_ip
+
+    - name: Iniciar y habilitar K3s en el primer nodo maestro
+      ansible.builtin.systemd:
+        name: k3s
+        enabled: yes
+        state: started
+      when: inventory_hostname == k3s_server_ip
+
+    - name: Obtener el token de K3s desde el primer nodo maestro
+      ansible.builtin.command: cat {{ k3s_token_path }}
+      register: k3s_token
+      delegate_to: "{{ k3s_server_ip }}"
+      run_once: true
+      when: inventory_hostname == k3s_server_ip
+
+    - name: Configurar nodos maestros adicionales
+      ansible.builtin.template:
+        src: templates/k3s_master_join.service.j2
+        dest: /etc/systemd/system/k3s.service
+      vars:
+        k3s_token: "{{ k3s_token.stdout }}"
+      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
+
+    - name: Configurar nodos trabajadores
+      ansible.builtin.template:
+        src: templates/k3s_agent.service.j2
+        dest: /etc/systemd/system/k3s-agent.service
+      vars:
+        k3s_token: "{{ k3s_token.stdout }}"
+      when: inventory_hostname in groups['workers']
+
+    - name: Iniciar y habilitar K3s en nodos adicionales
+      ansible.builtin.systemd:
+        name: "{{ 'k3s' if inventory_hostname in groups['masters'] else 'k3s-agent' }}"
+        enabled: yes
+        state: started
+      when: inventory_hostname != k3s_server_ip
