@@ -26,7 +26,7 @@ El archivo de inventario `inventory.ini` permite configurar:
 
 Ejemplo de `inventory.ini`:
 ```ini
-[nodos]
+[bootstrap]
 10.17.4.21 ansible_user=core ansible_ssh_private_key_file=/path/to/key ansible_port=22
 # Agregar más nodos aquí...
 
