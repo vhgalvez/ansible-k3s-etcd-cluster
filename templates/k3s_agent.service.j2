@@ -1,0 +1,15 @@
+[Unit]
+Description=Lightweight Kubernetes Node
+Documentation=https://k3s.io
+After=network-online.target
+
+[Service]
+Type=exec
+ExecStart=/opt/bin/k3s agent --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token }}
+Restart=always
+LimitNOFILE=1048576
+LimitNPROC=1048576
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target

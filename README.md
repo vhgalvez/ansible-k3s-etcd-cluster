@@ -1,40 +1,34 @@
 # Ansible K3s ETCD Cluster
 
-This project, `ansible-k3s-etcd-cluster`, provides Ansible playbooks and configurations to deploy a high-availability Kubernetes (K3s) cluster with embedded etcd across multiple nodes. Using this repository, you can set up master and worker nodes, automate node configurations, and simplify management tasks for your K3s cluster.
+Este proyecto, **ansible-k3s-etcd-cluster**, proporciona playbooks de Ansible y configuraciones para desplegar un clúster de Kubernetes (K3s) de alta disponibilidad con etcd embebido en múltiples nodos. Usando este repositorio, puedes configurar nodos maestros y trabajadores, automatizar las configuraciones de los nodos y simplificar la gestión de tu clúster K3s.
 
-## Features
-- **Automated K3s Deployment**: Quickly deploy K3s across multiple nodes.
-- **Embedded ETCD**: Provides a resilient datastore for high availability.
-- **Role-Based Node Configuration**: Assign nodes as masters or workers easily.
-- **Systemd Service Creation**: Ensures K3s runs on boot and is managed by systemd.
-- **Flatcar Linux Compatibility**: Compatible with Flatcar Container Linux and similar immutable OS setups.
-- **SSH Key-Based Access**: Secures node access and connections using SSH keys.
+## Características
+- **Despliegue automatizado de K3s**: Rápidamente despliega K3s en múltiples nodos.
+- **ETCD embebido**: Proporciona un almacén de datos resiliente para alta disponibilidad.
+- **Configuración de nodos basada en roles**: Asigna fácilmente nodos como maestros o trabajadores.
+- **Creación de servicio Systemd**: Asegura que K3s se ejecute al arrancar y sea gestionado por systemd.
+- **Compatibilidad con Flatcar Linux**: Compatible con Flatcar Container Linux y sistemas operativos inmutables similares.
+- **Acceso seguro con claves SSH**: Asegura el acceso a los nodos y las conexiones mediante claves SSH.
 
-## Cluster Overview
+## Resumen del Clúster
 
-The configuration supports a multi-master, multi-worker setup with optional load balancing and additional infrastructure nodes (Redis, PostgreSQL, etc.). Below is an example of a network layout that this repository can help configure:
+La configuración soporta una estructura multi-maestro, multi-trabajador con balanceo de carga opcional y nodos de infraestructura adicionales (Redis, PostgreSQL, etc.). A continuación se muestra un ejemplo de diseño de red que este repositorio puede ayudar a configurar:
 
-Public IP (HTTPS) | v Bastion Node (SSH Access) | v Load Balancer (Traefik) | v +----------------+---------------+-----------------+ | | | | Master Nodes Worker Nodes Infra Nodes
+- **IP Pública (HTTPS)** → **Nodo Bastion (Acceso SSH)** → **Balanceador de Carga (Traefik)** → **Nodos Maestros + Nodos Trabajadores + Nodos de Infraestructura**
 
-markdown
-Copiar código
+## Estructura del Inventario
 
-## Inventory Structure
+El archivo de inventario `inventory.ini` permite configurar:
+- **Nodos Maestros**: Alojan el almacén de datos etcd y controlan el clúster.
+- **Nodos Trabajadores**: Ejecutan aplicaciones y cargas de trabajo.
+- **Balanceador de Carga**: (Opcional) Balancea el tráfico al clúster.
+- **Base de Datos y Cache**: Nodos de infraestructura adicionales según sea necesario.
 
-The inventory file `inventory.ini` allows you to configure:
-- **Master Nodes**: Hosts the etcd datastore and controls the cluster.
-- **Worker Nodes**: Runs applications and workloads.
-- **Load Balancer**: (Optional) Balances traffic to the cluster.
-- **Database & Cache**: Additional infrastructure nodes as needed.
-
-Example `inventory.ini`:
+Ejemplo de `inventory.ini`:
 ```ini
 [nodos]
 10.17.4.21 ansible_user=core ansible_ssh_private_key_file=/path/to/key ansible_port=22
-# Add more nodes here...
-
-[masters]
-10.17.4.27 ansible_user=core ansible_ssh_private_key_file=/root/.ssh/cluster_openshift/key_cluster_openshift/id_rsa_key_cluster_openshift ansible_port=22
+# Agregar más nodos aquí...
 
 [masters]
 10.17.4.21 ansible_user=core ansible_ssh_private_key_file=/root/.ssh/cluster_openshift/key_cluster_openshift/id_rsa_key_cluster_openshift ansible_port=22
@@ -47,57 +41,56 @@ Example `inventory.ini`:
 10.17.4.26 ansible_user=core ansible_ssh_private_key_file=/root/.ssh/cluster_openshift/key_cluster_openshift/id_rsa_key_cluster_openshift ansible_port=22
 ```
 
-Prerequisites
-Ansible installed on your control machine.
-SSH access to all nodes with keys configured as per inventory.
-Internet access for downloading K3s binaries on each node.
-Usage
-Clone the repository:
+## Requisitos Previos
+- **Ansible** instalado en la máquina de control.
+- Acceso **SSH** a todos los nodos con claves configuradas según el inventario.
+- Acceso a **Internet** para descargar los binarios de K3s en cada nodo.
 
-bash
-Copiar código
-git clone https://github.com/yourusername/ansible-k3s-etcd-cluster.git
-cd ansible-k3s-etcd-cluster
-Update Inventory: Edit inventory.ini with the IP addresses and access details for your nodes.
+## Uso
+1. Clona el repositorio:
+   ```bash
+   git clone https://github.com/yourusername/ansible-k3s-etcd-cluster.git
+   cd ansible-k3s-etcd-cluster
+   ```
+2. Actualiza el Inventario: Edita `inventory.ini` con las direcciones IP y detalles de acceso para tus nodos.
+3. Ejecuta el Playbook: Despliega K3s y configura el clúster con:
+   ```bash
+   ansible-playbook -i inventory.ini install_k3s.yaml
+   ```
 
-Run Playbook: Deploy K3s and configure the cluster with:
+## Estructura del Playbook
+El playbook principal, `install_k3s.yaml`, incluye tareas para:
+- Instalar K3s en todos los nodos.
+- Crear servicios systemd para gestionar K3s en nodos maestros y trabajadores.
+- Unir nodos trabajadores y nodos maestros adicionales al clúster.
 
-bash
-Copiar código
-ansible-playbook -i inventory.ini install_k3s.yaml
-Playbook Structure
-The main playbook, install_k3s.yaml, includes tasks for:
+## Personalización de Plantillas
+Las plantillas de servicio para systemd están ubicadas en el directorio `templates`. Puedes personalizar:
+- `k3s_master.service.j2` para la configuración del maestro principal.
+- `k3s_master_join.service.j2` para unir maestros adicionales.
+- `k3s_agent.service.j2` para los nodos trabajadores.
 
-Installing K3s on all nodes.
-Creating systemd services to manage K3s on master and worker nodes.
-Joining worker and additional master nodes to the cluster.
-Customizing Templates
-Service templates for systemd are located in the templates directory. You can customize:
-
-k3s_master.service.j2 for primary master configuration.
-k3s_master_join.service.j2 for joining additional masters.
-k3s_agent.service.j2 for worker nodes.
-Verifying the Cluster
-To check the cluster status:
-
-bash
-Copiar código
+## Verificación del Clúster
+Para verificar el estado del clúster:
+```bash
 kubectl get nodes
-Ensure each node is in the Ready state.
+```
+Asegúrate de que cada nodo esté en estado **Ready**.
 
-Troubleshooting
-Node Connection Issues: Verify SSH access for each node as configured in inventory.ini.
-Permissions Issues with kubectl: Ensure kubeconfig permissions are correctly set.
-For any further issues, please create an issue on GitHub.
+## Solución de Problemas
+- **Problemas de conexión con nodos**: Verifica el acceso SSH para cada nodo como está configurado en `inventory.ini`.
+- **Problemas de permisos con `kubectl`**: Asegúrate de que los permisos de kubeconfig estén configurados correctamente.
 
-Contributing
-Contributions are welcome! Please submit a pull request or open an issue if you encounter any bugs or have suggestions for improvements.
+Para cualquier otro problema, por favor crea un issue en GitHub.
 
-License
-This project is licensed under the MIT License.
+## Contribuciones
+¡Las contribuciones son bienvenidas! Por favor, envía un pull request o abre un issue si encuentras errores o tienes sugerencias de mejora.
 
-# Contacto
+## Licencia
+Este proyecto está licenciado bajo la **Licencia MIT**.
 
-Para cualquier duda o problema, por favor abra un issue en el repositorio o contacte al mantenedor del proyecto.
+## Contacto
+Para cualquier duda o problema, por favor abre un issue en el repositorio o contacta al mantenedor del proyecto.
 
 **Mantenedor del Proyecto:** [Victor Galvez](https://github.com/vhgalvez)
+
