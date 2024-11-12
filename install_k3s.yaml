@@ -13,7 +13,7 @@
     - name: Descargar e instalar K3s en los nodos maestros y trabajadores
       ansible.builtin.raw: |
         mkdir -p /opt/bin && \
-        curl -Lo /opt/bin/k3s {{ k3s_url }} && \
+        curl -Lo /opt/bin/k3s "{{ k3s_url }}" && \
         chmod +x /opt/bin/k3s
       when: inventory_hostname in groups['masters'] + groups['workers']
 
@@ -35,7 +35,7 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s server --tls-san {{ k3s_server_ip }}
+        ExecStart=/opt/bin/k3s server --tls-san "{{ k3s_server_ip }}"
         Restart=on-failure
         KillMode=process
         Delegate=yes
@@ -56,7 +56,7 @@
       when: inventory_hostname == k3s_server_ip
 
     - name: Obtener el token de K3s desde el primer nodo maestro
-      ansible.builtin.raw: cat {{ k3s_token_path }}
+      ansible.builtin.raw: cat "{{ k3s_token_path }}"
       register: k3s_token
       delegate_to: "{{ k3s_server_ip }}"
       run_once: true
@@ -72,7 +72,7 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --tls-san {{ k3s_server_ip }}
+        ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --tls-san "{{ k3s_server_ip }}"
         Restart=on-failure
         KillMode=process
         Delegate=yes
