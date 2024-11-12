@@ -120,15 +120,15 @@
         systemctl start k3s-agent
       when: inventory_hostname in groups['workers']
 
-    # Solución para permisos de kubectl en todos los nodos
-    - name: Configurar permisos para el archivo kubeconfig de K3s si existe
+    # Configurar permisos y ajustar kubeconfig para que apunte al nodo maestro
+    - name: Configurar permisos y kubeconfig en los nodos para acceso a k3s
       ansible.builtin.raw: |
         if [ -f /etc/rancher/k3s/k3s.yaml ]; then
           chmod 644 /etc/rancher/k3s/k3s.yaml && \
           mkdir -p ~/.kube && \
           cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && \
-          chown $(whoami):$(whoami) ~/.kube/config && \
-          sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' ~/.kube/config
+          sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' ~/.kube/config && \
+          chown $(whoami):$(whoami) ~/.kube/config
         else
           echo "Archivo k3s.yaml no encontrado, omitiendo configuración en {{ inventory_hostname }}"
         fi
