@@ -2,7 +2,7 @@
 - name: Instalar y Configurar K3s con etcd en el Clúster
   hosts: all
   become: true
-  gather_facts: no
+  gather_facts: no  # Deshabilitamos la recolección de hechos para evitar dependencia de Python
 
   vars:
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
@@ -25,9 +25,27 @@
       when: inventory_hostname in groups['masters'] + groups['workers']
 
     - name: Configurar servicio K3s en el primer nodo maestro
-      ansible.builtin.template:
-        src: templates/k3s_master.service.j2
-        dest: /etc/systemd/system/k3s.service
+      ansible.builtin.raw: |
+        cat <<EOF | tee /etc/systemd/system/k3s.service
+        [Unit]
+        Description=Lightweight Kubernetes
+        Documentation=https://k3s.io
+        Wants=network-online.target
+        After=network-online.target
+
+        [Service]
+        Type=exec
+        ExecStart=/opt/bin/k3s server --tls-san "{{ k3s_server_ip }}"
+        Restart=on-failure
+        KillMode=process
+        Delegate=yes
+        LimitNOFILE=1048576
+        LimitNPROC=1048576
+        LimitCORE=infinity
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
       when: inventory_hostname == k3s_server_ip
 
     - name: Iniciar y habilitar K3s en el primer nodo maestro
@@ -38,15 +56,33 @@
       when: inventory_hostname == k3s_server_ip
 
     - name: Obtener el token de K3s desde el primer nodo maestro
-      ansible.builtin.shell: cat "{{ k3s_token_path }}"
+      ansible.builtin.raw: cat "{{ k3s_token_path }}"
       register: k3s_token
       delegate_to: "{{ k3s_server_ip }}"
       run_once: true
 
     - name: Configurar nodos maestros adicionales para unirse al clúster
-      ansible.builtin.template:
-        src: templates/k3s_master_join.service.j2
-        dest: /etc/systemd/system/k3s.service
+      ansible.builtin.raw: |
+        cat <<EOF | tee /etc/systemd/system/k3s.service
+        [Unit]
+        Description=Lightweight Kubernetes
+        Documentation=https://k3s.io
+        Wants=network-online.target
+        After=network-online.target
+
+        [Service]
+        Type=exec
+        ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --tls-san "{{ k3s_server_ip }}"
+        Restart=on-failure
+        KillMode=process
+        Delegate=yes
+        LimitNOFILE=1048576
+        LimitNPROC=1048576
+        LimitCORE=infinity
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
     - name: Iniciar y habilitar K3s en nodos maestros adicionales
@@ -57,9 +93,24 @@
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
     - name: Configurar nodos trabajadores para unirse al clúster
-      ansible.builtin.template:
-        src: templates/k3s_agent.service.j2
-        dest: /etc/systemd/system/k3s-agent.service
+      ansible.builtin.raw: |
+        cat <<EOF | tee /etc/systemd/system/k3s-agent.service
+        [Unit]
+        Description=Lightweight Kubernetes Node
+        Documentation=https://k3s.io
+        After=network-online.target
+
+        [Service]
+        Type=exec
+        ExecStart=/opt/bin/k3s agent --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --node-ip {{ ansible_host }}
+        Restart=always
+        LimitNOFILE=1048576
+        LimitNPROC=1048576
+        LimitCORE=infinity
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
       when: inventory_hostname in groups['workers']
 
     - name: Iniciar y habilitar K3s en los nodos trabajadores
@@ -69,6 +120,7 @@
         systemctl start k3s-agent
       when: inventory_hostname in groups['workers']
 
+    # Solución para permisos de kubectl en todos los nodos
     - name: Configurar permisos para el archivo kubeconfig de K3s si existe
       ansible.builtin.raw: |
         if [ -f /etc/rancher/k3s/k3s.yaml ]; then
