@@ -11,10 +11,7 @@
 
   tasks:
     - name: Ensure /opt/bin directory exists
-      ansible.builtin.file:
-        path: /opt/bin
-        state: directory
-        mode: '0755'
+      ansible.builtin.raw: mkdir -p /opt/bin
 
     - name: Descargar e instalar K3s en todos los nodos
       ansible.builtin.raw: |
@@ -29,24 +26,18 @@
         ln -sf /opt/bin/k3s /opt/bin/ctr
       when: inventory_hostname in groups['masters'] + groups['workers']
 
-    - name: Check if /etc/systemd/system directory exists on masters
-      ansible.builtin.stat:
-        path: /etc/systemd/system
-      register: systemd_dir
-      when: "'master' in group_names"
-
     - name: Configurar servicio K3s en el primer nodo maestro
       ansible.builtin.template:
         src: templates/k3s_master.service.j2
         dest: /etc/systemd/system/k3s.service
-      when: inventory_hostname == k3s_server_ip and systemd_dir.stat.exists
+      when: inventory_hostname == k3s_server_ip
 
     - name: Iniciar y habilitar K3s en el primer nodo maestro
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s
         systemctl start k3s
-      when: inventory_hostname == k3s_server_ip and systemd_dir.stat.exists
+      when: inventory_hostname == k3s_server_ip
 
     - name: Obtener el token de K3s desde el primer nodo maestro
       ansible.builtin.raw: cat "{{ k3s_token_path }}"
@@ -60,14 +51,14 @@
         dest: /etc/systemd/system/k3s.service
       vars:
         k3s_token: "{{ k3s_token.stdout }}"
-      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip and systemd_dir.stat.exists
+      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
     - name: Iniciar y habilitar K3s en nodos maestros adicionales
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s
         systemctl start k3s
-      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip and systemd_dir.stat.exists
+      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
     - name: Configurar nodos trabajadores para unirse al clúster
       ansible.builtin.template:
@@ -75,14 +66,14 @@
         dest: /etc/systemd/system/k3s-agent.service
       vars:
         k3s_token: "{{ k3s_token.stdout }}"
-      when: inventory_hostname in groups['workers'] and systemd_dir.stat.exists
+      when: inventory_hostname in groups['workers']
 
     - name: Iniciar y habilitar K3s en los nodos trabajadores
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s-agent
         systemctl start k3s-agent
-      when: inventory_hostname in groups['workers'] and systemd_dir.stat.exists
+      when: inventory_hostname in groups['workers']
 
     - name: Configurar permisos y kubeconfig en los nodos para acceso a k3s
       ansible.builtin.raw: |
