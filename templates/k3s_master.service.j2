@@ -6,7 +6,7 @@ After=network-online.target
 
 [Service]
 Type=exec
-ExecStart=/opt/bin/k3s server --cluster-init --datastore-endpoint=etcd --tls-san {{ k3s_server_ip }}
+ExecStart=/opt/bin/k3s server --cluster-init --tls-san {{ k3s_server_ip }}
 Restart=on-failure
 KillMode=process
 Delegate=yes
