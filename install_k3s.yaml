@@ -2,7 +2,7 @@
 - name: Instalar y Configurar K3s con etcd en el Clúster
   hosts: all
   become: true
-  gather_facts: no  # Deshabilitamos la recolección de hechos para evitar dependencia de Python
+  gather_facts: false  # Deshabilitamos la recolección de hechos para evitar dependencia de Python
 
   vars:
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
@@ -38,7 +38,7 @@
       when: inventory_hostname == k3s_server_ip
 
     - name: Obtener el token de K3s desde el primer nodo maestro
-      ansible.builtin.raw: cat "{{ k3s_token_path }}"
+      ansible.builtin.command: cat "{{ k3s_token_path }}"
       register: k3s_token
       delegate_to: "{{ k3s_server_ip }}"
       run_once: true
@@ -85,23 +85,26 @@
             mode: 0755
 
         - name: Copiar kubeconfig desde el nodo maestro
-          ansible.builtin.copy:
+          ansible.builtin.fetch:
             src: /etc/rancher/k3s/k3s.yaml
+            dest: /tmp/k3s.yaml
+            flat: yes
+          delegate_to: "{{ k3s_server_ip }}"
+          run_once: true
+
+        - name: Distribuir kubeconfig a los nodos trabajadores
+          ansible.builtin.copy:
+            src: /tmp/k3s.yaml
             dest: /home/core/.kube/config
             owner: core
             group: core
             mode: 0644
-          delegate_to: 10.17.4.21
-          run_once: true
 
         - name: Ajustar kubeconfig para que apunte al servidor maestro
-          ansible.builtin.shell: |
-            sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' /home/core/.kube/config
-          args:
-            executable: /bin/bash
-
-        - name: Verificar permisos en el archivo kubeconfig
-          ansible.builtin.shell: |
-            chown core:core /home/core/.kube/config && chmod 644 /home/core/.kube/config
-          args:
-            executable: /bin/bash
+          ansible.builtin.lineinfile:
+            path: /home/core/.kube/config
+            regexp: 'server: https://127.0.0.1:6443'
+            line: 'server: https://{{ k3s_server_ip }}:6443'
+            owner: core
+            group: core
+            mode: 0644
