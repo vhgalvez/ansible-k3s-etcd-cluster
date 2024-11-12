@@ -112,3 +112,59 @@ Ansible project to deploy a Kubernetes (K3s) cluster with etcd as the datastore,
 
 
 **Mantenedor del Proyecto:** [Victor Galvez](https://github.com/vhgalvez)
+
+
+
+```bash
+sudo cat /var/lib/rancher/k3s/server/node-token
+K105285ff598aec61abdf70c75ece64e56782d395222d6d8eabc9c49cadd74dcb8f::server:04fd44c81582d038e72d28d2ef7114b7
+```
+
+
+## master
+
+```bash
+sudo tee /etc/systemd/system/k3s.service > /dev/null <<EOF
+[Unit]
+Description=Lightweight Kubernetes
+Documentation=https://k3s.io
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=exec
+ExecStart=/opt/bin/k3s server --server https://10.17.4.21:6443 --token K105285ff598aec61abdf70c75ece64e56782d395222d6d8eabc9c49cadd74dcb8f::server:04fd44c81582d038e72d28d2ef7114b7
+Restart=on-failure
+KillMode=process
+Delegate=yes
+LimitNOFILE=1048576
+LimitNPROC=1048576
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+
+# worker 
+
+```bash
+sudo tee /etc/systemd/system/k3s-agent.service > /dev/null <<EOF
+[Unit]
+Description=Lightweight Kubernetes Node
+Documentation=https://k3s.io
+After=network-online.target
+
+[Service]
+Type=exec
+ExecStart=/opt/bin/k3s agent --server https://10.17.4.21:6443 --token K105285ff598aec61abdf70c75ece64e56782d395222d6d8eabc9c49cadd74dcb8f::server:04fd44c81582d038e72d28d2ef7114b7
+Restart=always
+LimitNOFILE=1048576
+LimitNPROC=1048576
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
