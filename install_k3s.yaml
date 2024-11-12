@@ -1,16 +1,15 @@
----
 - name: Instalar y Configurar K3s con etcd en el Clúster
   hosts: all
   become: true
-  gather_facts: no  # Disable gathering facts to avoid Python dependency on Flatcar
+  gather_facts: no # Disable gathering facts to avoid Python dependency on Flatcar
 
   vars:
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
     k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
-    k3s_server_ip: "10.17.4.21"  # IP of the primary master node
+    k3s_server_ip: "10.17.4.21" # IP del nodo maestro principal
 
   tasks:
-    - name: Ensure /opt/bin directory exists
+    - name: Asegurar que el directorio /opt/bin existe
       ansible.builtin.raw: mkdir -p /opt/bin
 
     - name: Descargar e instalar K3s en todos los nodos
@@ -31,11 +30,11 @@
         dest: /etc/systemd/system/k3s.service
       when: inventory_hostname == k3s_server_ip
 
-    - name: Iniciar y habilitar K3s en el primer nodo maestro
+    - name: Recargar e iniciar K3s en el primer nodo maestro
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s
-        systemctl start k3s
+        systemctl restart k3s
       when: inventory_hostname == k3s_server_ip
 
     - name: Obtener el token de K3s desde el primer nodo maestro
@@ -52,11 +51,11 @@
         k3s_token: "{{ k3s_token.stdout }}"
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
-    - name: Iniciar y habilitar K3s en nodos maestros adicionales
+    - name: Recargar e iniciar K3s en nodos maestros adicionales
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s
-        systemctl start k3s
+        systemctl restart k3s
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
     - name: Configurar nodos trabajadores para unirse al clúster
@@ -67,11 +66,11 @@
         k3s_token: "{{ k3s_token.stdout }}"
       when: inventory_hostname in groups['workers']
 
-    - name: Iniciar y habilitar K3s en los nodos trabajadores
+    - name: Recargar e iniciar K3s en los nodos trabajadores
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s-agent
-        systemctl start k3s-agent
+        systemctl restart k3s-agent
       when: inventory_hostname in groups['workers']
 
     - name: Configurar permisos y kubeconfig en los nodos para acceso a k3s
