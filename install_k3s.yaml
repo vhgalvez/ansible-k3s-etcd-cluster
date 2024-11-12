@@ -121,10 +121,11 @@
       when: inventory_hostname in groups['workers']
 
     # Solución para permisos de kubectl en todos los nodos
-    - name: Configurar permisos para el archivo kubeconfig de K3s
+    - name: Configurar permisos para el archivo kubeconfig de K3s y ajustarlo en todos los nodos
       ansible.builtin.raw: |
         chmod 644 /etc/rancher/k3s/k3s.yaml && \
         mkdir -p ~/.kube && \
         cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && \
-        chown $(whoami):$(whoami) ~/.kube/config
+        chown $(whoami):$(whoami) ~/.kube/config && \
+        sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' ~/.kube/config
       when: inventory_hostname in groups['masters'] + groups['workers']
