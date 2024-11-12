@@ -2,12 +2,12 @@
 - name: Instalar y Configurar K3s con etcd en el Clúster
   hosts: all
   become: true
-  gather_facts: no
+  gather_facts: no  # Disable gathering facts to avoid Python dependency on Flatcar
 
   vars:
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
     k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
-    k3s_server_ip: "10.17.4.21"
+    k3s_server_ip: "10.17.4.21"  # IP of the primary master node
 
   tasks:
     - name: Ensure /opt/bin directory exists
@@ -15,8 +15,7 @@
 
     - name: Descargar e instalar K3s en todos los nodos
       ansible.builtin.raw: |
-        curl -Lo /opt/bin/k3s "{{ k3s_url }}" && \
-        chmod +x /opt/bin/k3s
+        curl -Lo /opt/bin/k3s "{{ k3s_url }}" && chmod +x /opt/bin/k3s
       when: inventory_hostname in groups['masters'] + groups['workers']
 
     - name: Crear enlaces simbólicos para herramientas de K3s en Flatcar
