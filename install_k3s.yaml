@@ -2,15 +2,15 @@
 - name: Instalar y Configurar K3s con etcd en el Clúster
   hosts: all
   become: true
-  gather_facts: false  # Deshabilitamos la recolección de hechos para evitar dependencia de Python
+  gather_facts: no  # Disable gathering facts to avoid Python dependency on Flatcar
 
   vars:
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
     k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
-    k3s_server_ip: "10.17.4.21"  # Dirección IP del primer nodo maestro
+    k3s_server_ip: "10.17.4.21"  # IP of the primary master node
 
   tasks:
-    - name: Descargar e instalar K3s en los nodos maestros y trabajadores
+    - name: Descargar e instalar K3s en todos los nodos
       ansible.builtin.raw: |
         mkdir -p /opt/bin && \
         curl -Lo /opt/bin/k3s "{{ k3s_url }}" && \
@@ -73,7 +73,7 @@
         systemctl start k3s-agent
       when: inventory_hostname in groups['workers']
 
-    - name: Configurar kubeconfig en nodos trabajadores para acceso a k3s
+    - name: Configurar permisos y kubeconfig en los nodos para acceso a k3s
       ansible.builtin.raw: |
         if [ -f /etc/rancher/k3s/k3s.yaml ]; then
           mkdir -p /home/core/.kube && \
