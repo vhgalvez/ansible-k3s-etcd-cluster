@@ -2,12 +2,12 @@
 - name: Instalar y Configurar K3s con etcd en el Clúster
   hosts: all
   become: true
-  gather_facts: no # Deshabilitamos la recolección de hechos para evitar dependencia de Python
+  gather_facts: false  # Deshabilitamos la recolección de hechos para evitar dependencia de Python
 
   vars:
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
     k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
-    k3s_server_ip: "10.17.4.21" # Dirección IP del primer nodo maestro
+    k3s_server_ip: "10.17.4.21"  # Dirección IP del primer nodo maestro
 
   tasks:
     - name: Descargar e instalar K3s en los nodos maestros y trabajadores
@@ -73,36 +73,15 @@
         systemctl start k3s-agent
       when: inventory_hostname in groups['workers']
 
-    - name: Crear directorio .kube en el directorio del usuario core
-      ansible.builtin.file:
-        path: /home/core/.kube
-        state: directory
-        owner: core
-        group: core
-        mode: 0755
-      when: inventory_hostname in groups['workers']
-
-    - name: Copiar kubeconfig desde el nodo maestro
-      ansible.builtin.copy:
-        src: /etc/rancher/k3s/k3s.yaml
-        dest: /home/core/.kube/config
-        owner: core
-        group: core
-        mode: 0644
-      delegate_to: "{{ k3s_server_ip }}"
-      run_once: true
-      when: inventory_hostname in groups['workers']
-
-    - name: Ajustar kubeconfig para que apunte al servidor maestro
-      ansible.builtin.shell: |
-        sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' /home/core/.kube/config
-      args:
-        executable: /bin/bash
-      when: inventory_hostname in groups['workers']
-
-    - name: Verificar permisos en el archivo kubeconfig
-      ansible.builtin.shell: |
-        chown core:core /home/core/.kube/config && chmod 644 /home/core/.kube/config
-      args:
-        executable: /bin/bash
+    - name: Configurar kubeconfig en nodos trabajadores para acceso a k3s
+      ansible.builtin.raw: |
+        if [ -f /etc/rancher/k3s/k3s.yaml ]; then
+          mkdir -p /home/core/.kube && \
+          cp /etc/rancher/k3s/k3s.yaml /home/core/.kube/config && \
+          sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' /home/core/.kube/config && \
+          chown core:core /home/core/.kube/config && \
+          chmod 644 /home/core/.kube/config
+        else
+          echo "Archivo k3s.yaml no encontrado, omitiendo configuración en {{ inventory_hostname }}"
+        fi
       when: inventory_hostname in groups['workers']
