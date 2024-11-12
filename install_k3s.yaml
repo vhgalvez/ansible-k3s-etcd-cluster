@@ -1,16 +1,17 @@
 ---
-- name: Instalar y Configurar K3s en el Clúster
+- name: Instalar y Configurar K3s con etcd en el Clúster
   hosts: all
   become: true
-  gather_facts: no # Deshabilitamos la recolección de hechos
+  gather_facts: no
 
   vars:
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
     k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
-    k3s_server_ip: "10.17.4.21" # Dirección IP del primer nodo maestro
+    k3s_server_ip: "10.17.4.21"  # IP del primer nodo maestro
+    k3s_token: "K105285ff598aec61abdf70c75ece64e56782d395222d6d8eabc9c49cadd74dcb8f::server:04fd44c81582d038e72d28d2ef7114b7"  # Token obtenido del primer nodo maestro
 
   tasks:
-    - name: Descargar e instalar K3s en los nodos maestros y trabajadores
+    - name: Descargar e instalar K3s en los nodos
       ansible.builtin.raw: |
         mkdir -p /opt/bin && \
         curl -Lo /opt/bin/k3s "{{ k3s_url }}" && \
@@ -35,7 +36,7 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s server --tls-san "{{ k3s_server_ip }}"
+        ExecStart=/opt/bin/k3s server --cluster-init --tls-san "{{ k3s_server_ip }}"
         Restart=on-failure
         KillMode=process
         Delegate=yes
@@ -55,12 +56,6 @@
         systemctl start k3s
       when: inventory_hostname == k3s_server_ip
 
-    - name: Obtener el token de K3s desde el primer nodo maestro
-      ansible.builtin.raw: cat "{{ k3s_token_path }}"
-      register: k3s_token
-      delegate_to: "{{ k3s_server_ip }}"
-      run_once: true
-
     - name: Configurar nodos maestros adicionales para unirse al clúster
       ansible.builtin.raw: |
         cat <<EOF | tee /etc/systemd/system/k3s.service
@@ -72,7 +67,7 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --tls-san "{{ k3s_server_ip }}"
+        ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token }} --tls-san "{{ k3s_server_ip }}"
         Restart=on-failure
         KillMode=process
         Delegate=yes
@@ -102,7 +97,7 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s agent --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --node-ip {{ ansible_host }}
+        ExecStart=/opt/bin/k3s agent --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token }} --node-ip {{ ansible_host }}
         Restart=always
         LimitNOFILE=1048576
         LimitNPROC=1048576
@@ -120,16 +115,9 @@
         systemctl start k3s-agent
       when: inventory_hostname in groups['workers']
 
-    # Solución para permisos de kubectl en todos los nodos
     - name: Configurar permisos para el archivo kubeconfig de K3s si existe
       ansible.builtin.raw: |
         if [ -f /etc/rancher/k3s/k3s.yaml ]; then
           chmod 644 /etc/rancher/k3s/k3s.yaml && \
-          mkdir -p ~/.kube && \
-          cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && \
-          chown $(whoami):$(whoami) ~/.kube/config && \
-          sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' ~/.kube/config
-        else
-          echo "Archivo k3s.yaml no encontrado, omitiendo configuración en {{ inventory_hostname }}"
-        fi
-      when: inventory_hostname in groups['masters'] + groups['workers']
+          mkdir -
+::contentReference[oaicite:0]{index=0}
