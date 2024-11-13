@@ -53,6 +53,15 @@
           --initial-cluster-state new
       when: inventory_hostname == k3s_server_ip and etcd_connectivity.rc != 0
 
+    - name: Verificar el estado del contenedor etcd
+      ansible.builtin.raw: docker ps -f name=etcd --format "{{ '{{.Status}}' }}"
+      register: etcd_status
+      when: inventory_hostname == k3s_server_ip
+
+    - name: Mostrar logs del contenedor etcd si no está corriendo
+      ansible.builtin.raw: docker logs etcd
+      when: inventory_hostname == k3s_server_ip and etcd_status.stdout.find('Up') == -1
+
     - name: Configurar servicio K3s en el primer nodo maestro
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s.service
