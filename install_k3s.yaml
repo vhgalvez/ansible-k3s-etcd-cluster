@@ -7,6 +7,7 @@
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
     k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
     k3s_server_ip: "10.17.4.21" # IP del nodo maestro principal
+    etcd_endpoint: "10.17.4.21:2379" # Update with the correct etcd endpoint
 
   tasks:
     - name: Asegurar que el directorio /opt/bin existe
@@ -37,7 +38,7 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s server --cluster-init --tls-san {{ k3s_server_ip }}
+        ExecStart=/opt/bin/k3s server --cluster-init --datastore-endpoint='etcd://{{ etcd_endpoint }}'
         Restart=on-failure
         KillMode=process
         Delegate=yes
@@ -74,7 +75,7 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --tls-san={{ k3s_server_ip }}
+        ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --datastore-endpoint='etcd://{{ etcd_endpoint }}'
         Restart=on-failure
         KillMode=process
         Delegate=yes
@@ -135,3 +136,8 @@
           echo "Archivo k3s.yaml no encontrado, omitiendo configuración en {{ inventory_hostname }}"
         fi
       when: inventory_hostname in groups['masters'] + groups['workers']
+
+    - name: Copiar kubeconfig desde el nodo maestro principal a otros nodos
+      ansible.builtin.raw: |
+        scp core@{{ k3s_server_ip }}:/etc/rancher/k3s/k3s.yaml /etc/rancher/k3s/k3s.yaml
+      when: inventory_hostname != k3s_server_ip
