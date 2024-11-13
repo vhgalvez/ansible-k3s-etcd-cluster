@@ -38,7 +38,7 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s server --cluster-init --datastore-endpoint='etcd://{{ etcd_endpoint }}'
+        ExecStart=/opt/bin/k3s server --cluster-init --datastore-endpoint='etcd://{{ etcd_endpoint }}' --tls-san {{ k3s_server_ip }}
         Restart=on-failure
         KillMode=process
         Delegate=yes
@@ -75,7 +75,7 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --datastore-endpoint='etcd://{{ etcd_endpoint }}'
+        ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --datastore-endpoint='etcd://{{ etcd_endpoint }}' --tls-san {{ k3s_server_ip }}
         Restart=on-failure
         KillMode=process
         Delegate=yes
