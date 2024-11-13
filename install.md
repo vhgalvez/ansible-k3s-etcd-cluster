@@ -183,6 +183,8 @@ Verificar que `kubectl` funcione sin sudo:
 kubectl get nodes
 ```
 
+Asegúrate de que el archivo `kubeconfig` esté correctamente configurado y apunte al servidor K3s correcto.
+
 ## Paso 6: Verificar el Estado del Clúster desde el Nodo Maestro Principal
 
 Ejecuta el siguiente comando en el nodo maestro principal para ver el estado de todos los nodos:
