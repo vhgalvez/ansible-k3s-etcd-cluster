@@ -25,7 +25,7 @@ After=network-online.target
 
 [Service]
 Type=exec
-ExecStart=/opt/bin/k3s server --cluster-init
+ExecStart=/opt/bin/k3s server --cluster-init --datastore-endpoint=<ETCD_ENDPOINT>
 Restart=on-failure
 KillMode=process
 Delegate=yes
@@ -37,6 +37,8 @@ LimitCORE=infinity
 WantedBy=multi-user.target
 EOF
 ```
+
+Reemplaza `<ETCD_ENDPOINT>` con la URL de tu endpoint de etcd.
 
 Habilitar e iniciar K3s en el nodo maestro principal:
 
@@ -89,7 +91,7 @@ After=network-online.target
 
 [Service]
 Type=exec
-ExecStart=/opt/bin/k3s server --server https://10.17.4.21:6443 --token <TOKEN>
+ExecStart=/opt/bin/k3s server --server https://10.17.4.21:6443 --token <TOKEN> --datastore-endpoint=<ETCD_ENDPOINT>
 Restart=on-failure
 KillMode=process
 Delegate=yes
@@ -102,7 +104,7 @@ WantedBy=multi-user.target
 EOF
 ```
 
-Reemplaza `<TOKEN>` con el token copiado en el Paso 2.
+Reemplaza `<TOKEN>` con el token copiado en el Paso 2 y `<ETCD_ENDPOINT>` con la URL de tu endpoint de etcd.
 
 Habilitar e iniciar K3s en los nodos maestros secundarios:
 
