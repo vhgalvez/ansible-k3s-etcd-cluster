@@ -27,6 +27,13 @@
         ln -sf /opt/bin/k3s /opt/bin/ctr
       when: inventory_hostname in groups['masters'] + groups['workers']
 
+    - name: Verificar conectividad con el endpoint de etcd
+      ansible.builtin.raw: |
+        nc -zv {{ etcd_endpoint.split(':')[0] }} {{ etcd_endpoint.split(':')[1] }}
+      register: etcd_connectivity
+      failed_when: etcd_connectivity.rc != 0
+      when: inventory_hostname == k3s_server_ip
+
     - name: Configurar servicio K3s en el primer nodo maestro
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s.service
