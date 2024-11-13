@@ -161,6 +161,9 @@ Flatcar Container Linux tiene un sistema de archivos de solo lectura, por lo que
 #### 4.1 Copiar el Archivo de Configuración de K3s
 Copia el archivo de configuración de K3s a tu directorio de usuario para usarlo con kubectl:
 
+la copia de /etc/rancher/k3s/k3s.yaml del nodo master1 tiene que hacer para los otros nodos funcionen
+
+
 ```bash
 mkdir -p ~/.kube
 sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
