@@ -7,11 +7,13 @@
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
     k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
     k3s_server_ip: "10.17.4.21" # IP del nodo maestro principal
-    etcd_endpoint: "10.17.4.21:2379" # Update with the correct etcd endpoint
 
   tasks:
-    - name: Asegurar que el directorio /opt/bin existe
-      ansible.builtin.raw: mkdir -p /opt/bin
+    - name: Asegurar que los directorios necesarios existen
+      ansible.builtin.raw: |
+        mkdir -p /opt/bin
+        mkdir -p /etc/rancher/k3s
+      when: inventory_hostname in groups['masters'] + groups['workers']
 
     - name: Descargar e instalar K3s en todos los nodos
       ansible.builtin.raw: |
@@ -27,41 +29,6 @@
         ln -sf /opt/bin/k3s /opt/bin/ctr
       when: inventory_hostname in groups['masters'] + groups['workers']
 
-    - name: Verificar conectividad con el endpoint de etcd
-      ansible.builtin.raw: |
-        nc -zv {{ etcd_endpoint.split(':')[0] }} {{ etcd_endpoint.split(':')[1] }}
-      register: etcd_connectivity
-      failed_when: etcd_connectivity.rc != 0
-      when: inventory_hostname == k3s_server_ip
-
-    - name: Asegurar que etcd está corriendo en el nodo maestro principal
-      ansible.builtin.raw: |
-        docker run -d --name etcd \
-          -p 2379:2379 \
-          -p 2380:2380 \
-          --volume=/etcd-data:/etcd-data \
-          quay.io/coreos/etcd:v3.4.13 \
-          /usr/local/bin/etcd \
-          --data-dir=/etcd-data \
-          --name node1 \
-          --initial-advertise-peer-urls http://{{ k3s_server_ip }}:2380 \
-          --listen-peer-urls http://0.0.0.0:2380 \
-          --advertise-client-urls http://{{ k3s_server_ip }}:2379 \
-          --listen-client-urls http://0.0.0.0:2379 \
-          --initial-cluster node1=http://{{ k3s_server_ip }}:2380 \
-          --initial-cluster-token etcd-cluster-1 \
-          --initial-cluster-state new
-      when: inventory_hostname == k3s_server_ip and etcd_connectivity.rc != 0
-
-    - name: Verificar el estado del contenedor etcd
-      ansible.builtin.raw: docker ps -f name=etcd --format "{{ '{{.Status}}' }}"
-      register: etcd_status
-      when: inventory_hostname == k3s_server_ip
-
-    - name: Mostrar logs del contenedor etcd si no está corriendo
-      ansible.builtin.raw: docker logs etcd
-      when: inventory_hostname == k3s_server_ip and etcd_status.stdout.find('Up') == -1
-
     - name: Configurar servicio K3s en el primer nodo maestro
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s.service
@@ -73,7 +40,11 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s server --cluster-init --datastore-endpoint='etcd://{{ etcd_endpoint }}' --tls-san {{ k3s_server_ip }}
+        ExecStart=/opt/bin/k3s server \
+            --cluster-init \
+            --tls-san {{ k3s_server_ip }} \
+            --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
+            --write-kubeconfig-mode 644
         Restart=on-failure
         KillMode=process
         Delegate=yes
@@ -101,6 +72,15 @@
       ansible.builtin.raw: journalctl -u k3s -n 100 --no-pager
       when: inventory_hostname == k3s_server_ip
 
+    - name: Esperar a que el archivo kubeconfig esté disponible
+      ansible.builtin.raw: |
+        timeout=60
+        while [ ! -f /etc/rancher/k3s/k3s.yaml ] && [ $timeout -gt 0 ]; do
+          sleep 1
+          timeout=$((timeout-1))
+        done
+      when: inventory_hostname == k3s_server_ip
+
     - name: Obtener el token de K3s desde el primer nodo maestro
       ansible.builtin.raw: cat "{{ k3s_token_path }}"
       register: k3s_token
@@ -125,7 +105,7 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --datastore-endpoint='etcd://{{ etcd_endpoint }}' --tls-san {{ k3s_server_ip }}
+        ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --tls-san {{ k3s_server_ip }}
         Restart=on-failure
         KillMode=process
         Delegate=yes

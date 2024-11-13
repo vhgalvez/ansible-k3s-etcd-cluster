@@ -6,7 +6,11 @@ After=network-online.target
 
 [Service]
 Type=exec
-ExecStart=/opt/bin/k3s server --cluster-init --datastore-endpoint='etcd://{{ etcd_endpoint }}' --tls-san {{ k3s_server_ip }}
+ExecStart=/opt/bin/k3s server \
+    --cluster-init \
+    --tls-san {{ k3s_server_ip }} \
+    --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
+    --write-kubeconfig-mode 644
 Restart=on-failure
 KillMode=process
 Delegate=yes
