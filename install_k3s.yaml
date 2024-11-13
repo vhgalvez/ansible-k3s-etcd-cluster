@@ -37,12 +37,13 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s server --token {{ k3s_token.stdout }}
+        ExecStart=/opt/bin/k3s server --cluster-init --tls-san {{ k3s_server_ip }}
         Restart=on-failure
+        KillMode=process
+        Delegate=yes
         LimitNOFILE=1048576
         LimitNPROC=1048576
-        TasksMax=infinity
-        Delegate=yes
+        LimitCORE=infinity
 
         [Install]
         WantedBy=multi-user.target
@@ -53,7 +54,7 @@
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s
-        systemctl restart k3s
+        systemctl start k3s
       when: inventory_hostname == k3s_server_ip
 
     - name: Obtener el token de K3s desde el primer nodo maestro
@@ -73,12 +74,13 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }}
+        ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --tls-san={{ k3s_server_ip }}
         Restart=on-failure
+        KillMode=process
+        Delegate=yes
         LimitNOFILE=1048576
         LimitNPROC=1048576
-        TasksMax=infinity
-        Delegate=yes
+        LimitCORE=infinity
 
         [Install]
         WantedBy=multi-user.target
@@ -89,7 +91,7 @@
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s
-        systemctl restart k3s
+        systemctl start k3s
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
     - name: Configurar nodos trabajadores para unirse al clúster
@@ -103,12 +105,11 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s agent --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }}
-        Restart=on-failure
+        ExecStart=/opt/bin/k3s agent --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --node-ip {{ ansible_host }}
+        Restart=always
         LimitNOFILE=1048576
         LimitNPROC=1048576
-        TasksMax=infinity
-        Delegate=yes
+        LimitCORE=infinity
 
         [Install]
         WantedBy=multi-user.target
@@ -119,7 +120,7 @@
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s-agent
-        systemctl restart k3s-agent
+        systemctl start k3s-agent
       when: inventory_hostname in groups['workers']
 
     - name: Configurar permisos y kubeconfig en los nodos para acceso a k3s
