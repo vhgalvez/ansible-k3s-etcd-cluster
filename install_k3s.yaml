@@ -134,4 +134,4 @@
         else
           echo "Archivo k3s.yaml no encontrado, omitiendo configuración en {{ inventory_hostname }}"
         fi
-      when: inventory_hostname in groups['workers']
+      when: inventory_hostname in groups['masters'] + groups['workers']
