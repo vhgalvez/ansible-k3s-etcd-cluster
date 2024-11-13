@@ -58,9 +58,24 @@
         systemctl start k3s
       when: inventory_hostname == k3s_server_ip
 
+    - name: Verificar el estado del servicio K3s en el primer nodo maestro
+      ansible.builtin.raw: systemctl status k3s -l
+      when: inventory_hostname == k3s_server_ip
+
+    - name: Obtener los logs del servicio K3s en el primer nodo maestro
+      ansible.builtin.raw: journalctl -u k3s -n 100 --no-pager
+      when: inventory_hostname == k3s_server_ip
+
     - name: Obtener el token de K3s desde el primer nodo maestro
       ansible.builtin.raw: cat "{{ k3s_token_path }}"
       register: k3s_token
+      delegate_to: "{{ k3s_server_ip }}"
+      run_once: true
+      failed_when: k3s_token.rc != 0
+
+    - name: Obtener los logs del servicio K3s si el token no se encuentra
+      ansible.builtin.raw: journalctl -u k3s -n 100 --no-pager
+      when: k3s_token.rc != 0
       delegate_to: "{{ k3s_server_ip }}"
       run_once: true
 
