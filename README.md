@@ -175,4 +175,3 @@ sudo systemctl daemon-reload
 sudo systemctl enable k3s
 sudo systemctl start k3s
 ```
-
