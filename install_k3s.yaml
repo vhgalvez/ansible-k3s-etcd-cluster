@@ -224,7 +224,7 @@
     - name: Copiar kubeconfig desde el nodo maestro principal a otros nodos
       ansible.builtin.raw: |
         scp core@{{ k3s_server_ip }}:/etc/rancher/k3s/k3s.yaml /etc/rancher/k3s/k3s.yaml
-      when: inventory_hostname != k3s_server_ip
+      when: inventory_hostname in groups['workers']
 
     - name: Configurar kubeconfig en los nodos trabajadores para acceso a k3s
       ansible.builtin.raw: |
