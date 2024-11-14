@@ -222,12 +222,10 @@
       when: inventory_hostname in groups['masters'] + groups['workers']
 
     - name: Crear directorio .kube en los nodos trabajadores
-      ansible.builtin.file:
-        path: /home/core/.kube
-        state: directory
-        owner: core
-        group: core
-        mode: '0755'
+      ansible.builtin.raw: |
+        mkdir -p /home/core/.kube && \
+        chown core:core /home/core/.kube && \
+        chmod 755 /home/core/.kube
       when: inventory_hostname in groups['workers']
 
     - name: Obtener kubeconfig desde el primer nodo maestro
