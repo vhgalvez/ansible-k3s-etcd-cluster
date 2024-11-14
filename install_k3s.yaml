@@ -112,9 +112,33 @@
       run_once: true
 
     - name: Configurar nodos maestros adicionales para unirse al clúster
-      ansible.builtin.template:
-        src: k3s_master_join.service.j2
-        dest: /etc/systemd/system/k3s.service
+      ansible.builtin.raw: |
+        cat <<EOF > /etc/systemd/system/k3s.service
+        [Unit]
+        Description=Lightweight Kubernetes
+        Documentation=https://k3s.io
+        Wants=network-online.target
+        After=network-online.target
+
+        [Service]
+        Type=notify
+        ExecStartPre=-/sbin/modprobe br_netfilter
+        ExecStartPre=-/sbin/modprobe overlay
+        ExecStart=/opt/bin/k3s server \
+            --server https://{{ k3s_server_ip }}:6443 \
+            --token {{ k3s_token.stdout }} \
+            --tls-san {{ k3s_server_ip }} \
+            --node-name {{ inventory_hostname }}
+        Restart=always
+        KillMode=process
+        Delegate=yes
+        LimitNOFILE=1048576
+        LimitNPROC=infinity
+        LimitCORE=infinity
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
     - name: Recargar e iniciar K3s en nodos maestros adicionales
@@ -122,6 +146,22 @@
         systemctl daemon-reload
         systemctl enable k3s
         systemctl start k3s
+        systemctl is-active k3s
+      register: k3s_join_start
+      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
+
+    - name: Esperar a que los nodos maestros adicionales estén listos
+      ansible.builtin.raw: |
+        timeout=120
+        while ! systemctl is-active k3s >/dev/null 2>&1 && [ $timeout -gt 0 ]; do
+          echo "Esperando a que K3s esté activo... ($timeout segundos restantes)"
+          sleep 5
+          timeout=$((timeout-5))
+        done
+        if [ $timeout -le 0 ]; then
+          echo "Timeout esperando a que K3s esté activo"
+          exit 1
+        fi
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
     - name: Configurar nodos trabajadores para unirse al clúster
