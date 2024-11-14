@@ -55,7 +55,7 @@ Ejemplo de `inventory.ini`:
 2. Actualiza el Inventario: Edita `inventory.ini` con las direcciones IP y detalles de acceso para tus nodos.
 3. Ejecuta el Playbook: Despliega K3s y configura el clúster con:
    ```bash
-   ansible-playbook -i inventory.ini install_k3s.yaml
+   sudo ansible-playbook -i inventory.ini install_k3s.yaml
    ```
 
 ## Estructura del Playbook
