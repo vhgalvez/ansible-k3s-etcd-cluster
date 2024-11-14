@@ -138,7 +138,7 @@ After=network-online.target
 
 [Service]
 Type=exec
-ExecStart=/opt/bin/k3s agent --server https://10.17.4.21:6443 --token <TOKEN>
+ExecStart=/opt/bin/k3s agent --server https://10.17.4.21:6443 --token <TOKEN> --node-name <NODE_NAME>
 Restart=always
 LimitNOFILE=1048576
 LimitNPROC=1048576

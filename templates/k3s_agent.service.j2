@@ -5,7 +5,7 @@ After=network-online.target
 
 [Service]
 Type=exec
-ExecStart=/opt/bin/k3s agent --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --node-ip {{ ansible_host }}
+ExecStart=/opt/bin/k3s agent --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --node-ip {{ ansible_host }} --node-name {{ inventory_hostname }}
 Restart=always
 LimitNOFILE=1048576
 LimitNPROC=1048576
