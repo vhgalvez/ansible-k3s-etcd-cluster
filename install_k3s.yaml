@@ -158,7 +158,7 @@
           sleep 5
           timeout=$((timeout-5))
         done
-        if [ $timeout -le 0 ]; then
+        if [ $ timeout -le 0 ]; then
           echo "Timeout esperando a que K3s esté activo"
           exit 1
         fi
@@ -220,6 +220,15 @@
           echo "Archivo k3s.yaml no encontrado, omitiendo configuración en {{ inventory_hostname }}"
         fi
       when: inventory_hostname in groups['masters'] + groups['workers']
+
+    - name: Crear directorio .kube en los nodos trabajadores
+      ansible.builtin.file:
+        path: /home/core/.kube
+        state: directory
+        owner: core
+        group: core
+        mode: '0755'
+      when: inventory_hostname in groups['workers']
 
     - name: Obtener kubeconfig desde el primer nodo maestro
       ansible.builtin.raw: cat /etc/rancher/k3s/k3s.yaml
