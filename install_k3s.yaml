@@ -225,3 +225,16 @@
       ansible.builtin.raw: |
         scp core@{{ k3s_server_ip }}:/etc/rancher/k3s/k3s.yaml /etc/rancher/k3s/k3s.yaml
       when: inventory_hostname != k3s_server_ip
+
+    - name: Configurar kubeconfig en los nodos trabajadores para acceso a k3s
+      ansible.builtin.raw: |
+        if [ -f /etc/rancher/k3s/k3s.yaml ]; then
+          mkdir -p /home/core/.kube && \
+          cp /etc/rancher/k3s/k3s.yaml /home/core/.kube/config && \
+          sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' /home/core/.kube/config && \
+          chown core:core /home/core/.kube/config && \
+          chmod 644 /home/core/.kube/config
+        else
+          echo "Archivo k3s.yaml no encontrado, omitiendo configuración en {{ inventory_hostname }}"
+        fi
+      when: inventory_hostname in groups['workers']
