@@ -207,6 +207,29 @@ Recarga el archivo de configuración del shell para activar el alias:
 source ~/.bashrc
 ```
 
+Para asegurarte de que kubectl use el archivo de configuración correcto (/home/core/.kube/config), puedes hacerlo de las siguientes maneras:
+
+Especificar la Ruta Directamente en el Comando: Ejecuta kubectl con la opción --kubeconfig para asegurarte de que use el archivo correcto:
+
+bash
+Copiar código
+kubectl --kubeconfig=/home/core/.kube/config get nodes
+Establecer la Variable de Entorno KUBECONFIG: Esto hará que todos los comandos kubectl en esta sesión usen el archivo de configuración correcto:
+
+bash
+Copiar código
+export KUBECONFIG=/home/core/.kube/config
+kubectl get nodes
+Para hacer esto de forma persistente, puedes agregar el comando export en el archivo .bashrc de core:
+
+bash
+Copiar código
+echo 'export KUBECONFIG=/home/core/.kube/config' >> ~/.bashrc
+source ~/.bashrc
+Revisar el Contenido de /home/core/.kube/config: Asegúrate de que el archivo tiene la configuración correcta apuntando a https://10.17.4.21:6443 en el campo server. Este archivo parece estar bien configurado según el contenido que proporcionaste.
+
+Después de hacer uno de estos ajustes, intenta nuevamente ejecutar kubectl get nodes para verificar la conectividad del nodo worker1 al maestro.
+
 #### 4.3 Verificar el Alias de kubectl
 Ahora deberías poder utilizar kubectl directamente:
 
@@ -246,3 +269,15 @@ Siguiendo esta guía, habrás configurado un clúster de K3s en Flatcar Containe
 
 
 
+
+
+
+# Instalación de K3s en nodos worker Flatcar Container Linux
+
+
+sudo mkdir -p /opt/bin
+sudo curl -sfL https://get.k3s.io | INSTALL_K3S_BIN_DIR=/opt/bin K3S_URL=https://10.17.4.21:6443 K3S_TOKEN=K10d65b4c3c09dd1384773f15e3f8ae91d3bbeac43aeb24b5038c1fbe23431a1d0d::server:db1ca19be34084bf1536fa068453ad63 sh -
+
+
+
+--token K10d65b4c3c09dd1384773f15e3f8ae91d3bbeac43aeb24b5038c1fbe23431a1d0d::server:db1ca19be34084bf1536fa068453ad63
