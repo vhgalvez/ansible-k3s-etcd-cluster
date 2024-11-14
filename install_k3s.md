@@ -107,6 +107,7 @@ Recarga el demonio de systemd, habilita y arranca el servicio de K3s en cada nod
 sudo systemctl daemon-reload
 sudo systemctl enable k3s
 sudo systemctl start k3s
+sudo systemctl status k3s
 ```
 
 ### Paso 3: Configuración de Nodos Trabajadores

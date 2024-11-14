@@ -13,6 +13,7 @@
       ansible.builtin.raw: |
         mkdir -p /opt/bin
         mkdir -p /etc/rancher/k3s
+        mkdir -p /var/lib/rancher/k3s/server
       when: inventory_hostname in groups['masters'] + groups['workers']
 
     - name: Descargar e instalar K3s en todos los nodos
@@ -21,6 +22,11 @@
       args:
         timeout: 600
       when: inventory_hostname in groups['masters'] + groups['workers']
+
+    - name: Verificar que el binario de K3s no está en uso
+      ansible.builtin.raw: |
+        fuser -k /opt/bin/k3s || true
+      when: inventory_hostname == k3s_server_ip
 
     - name: Crear enlaces simbólicos para herramientas de K3s en Flatcar
       ansible.builtin.raw: |
@@ -67,18 +73,20 @@
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s
-        systemctl restart k3s
+        systemctl start k3s
       when: inventory_hostname == k3s_server_ip
+      register: k3s_start
+      ignore_errors: yes
 
-    - name: Obtener los logs del servicio K3s en el primer nodo maestro
+    - name: Obtener los logs del servicio K3s en el primer nodo maestro si falla
       ansible.builtin.raw: journalctl -u k3s -n 100 --no-pager
       register: k3s_logs
-      when: inventory_hostname == k3s_server_ip
+      when: k3s_start.failed and inventory_hostname == k3s_server_ip
 
-    - name: Mostrar logs del servicio K3s
+    - name: Mostrar logs del servicio K3s si falla
       ansible.builtin.debug:
         var: k3s_logs.stdout_lines
-      when: inventory_hostname == k3s_server_ip
+      when: k3s_start.failed and inventory_hostname == k3s_server_ip
 
     - name: Esperar a que K3s esté listo
       ansible.builtin.raw: |
@@ -92,7 +100,7 @@
           echo "Timeout esperando a que K3s esté activo"
           exit 1
         fi
-      when: inventory_hostname == k3s_server_ip
+      when: inventory_hostname == k3s_server_ip and not k3s_start.failed
 
     - name: Obtener el token de K3s desde el primer nodo maestro
       ansible.builtin.raw: cat "{{ k3s_token_path }}"
