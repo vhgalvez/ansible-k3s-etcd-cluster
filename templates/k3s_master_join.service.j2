@@ -6,8 +6,8 @@ After=network-online.target
 
 [Service]
 Type=exec
-ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token }} --datastore-endpoint='etcd://{{ etcd_endpoint }}' --tls-san {{ k3s_server_ip }}
-Restart=on-failure
+ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token }} --tls-san {{ k3s_server_ip }}
+Restart=always
 KillMode=process
 Delegate=yes
 LimitNOFILE=1048576

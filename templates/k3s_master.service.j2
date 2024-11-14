@@ -5,17 +5,19 @@ Wants=network-online.target
 After=network-online.target
 
 [Service]
-Type=exec
+Type=notify
+ExecStartPre=-/sbin/modprobe br_netfilter
+ExecStartPre=-/sbin/modprobe overlay
 ExecStart=/opt/bin/k3s server \
     --cluster-init \
     --tls-san {{ k3s_server_ip }} \
     --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
     --write-kubeconfig-mode 644
-Restart=on-failure
+Restart=always
 KillMode=process
 Delegate=yes
 LimitNOFILE=1048576
-LimitNPROC=1048576
+LimitNPROC=infinity
 LimitCORE=infinity
 
 [Install]

@@ -36,37 +36,9 @@
       when: inventory_hostname in groups['masters'] + groups['workers']
 
     - name: Configurar servicio K3s en el primer nodo maestro
-      ansible.builtin.raw: |
-        cat <<EOF > /etc/systemd/system/k3s.service
-        [Unit]
-        Description=Lightweight Kubernetes
-        Documentation=https://k3s.io
-        Wants=network-online.target
-        After=network-online.target
-
-        [Service]
-        Type=notify
-        ExecStartPre=-/sbin/modprobe br_netfilter
-        ExecStartPre=-/sbin/modprobe overlay
-        ExecStart=/opt/bin/k3s server \
-            --cluster-init \
-            --tls-san {{ k3s_server_ip }} \
-            --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
-            --write-kubeconfig-mode 644 \
-            --node-name {{ inventory_hostname }}
-        Environment="K3S_KUBECONFIG_MODE=644"
-        Environment="K3S_TOKEN_FILE={{ k3s_token_path }}"
-        KillMode=process
-        Delegate=yes
-        LimitNOFILE=1048576
-        LimitNPROC=infinity
-        LimitCORE=infinity
-        Restart=always
-        RestartSec=5s
-
-        [Install]
-        WantedBy=multi-user.target
-        EOF
+      ansible.builtin.template:
+        src: k3s_master.service.j2
+        dest: /etc/systemd/system/k3s.service
       when: inventory_hostname == k3s_server_ip
 
     - name: Recargar e iniciar K3s en el primer nodo maestro
@@ -116,27 +88,9 @@
       run_once: true
 
     - name: Configurar nodos maestros adicionales para unirse al clúster
-      ansible.builtin.raw: |
-        cat <<EOF > /etc/systemd/system/k3s.service
-        [Unit]
-        Description=Lightweight Kubernetes
-        Documentation=https://k3s.io
-        Wants=network-online.target
-        After=network-online.target
-
-        [Service]
-        Type=exec
-        ExecStart=/opt/bin/k3s server --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --tls-san {{ k3s_server_ip }}
-        Restart=on-failure
-        KillMode=process
-        Delegate=yes
-        LimitNOFILE=1048576
-        LimitNPROC=1048576
-        LimitCORE=infinity
-
-        [Install]
-        WantedBy=multi-user.target
-        EOF
+      ansible.builtin.template:
+        src: k3s_master_join.service.j2
+        dest: /etc/systemd/system/k3s.service
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
     - name: Recargar e iniciar K3s en nodos maestros adicionales
@@ -147,25 +101,9 @@
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
     - name: Configurar nodos trabajadores para unirse al clúster
-      ansible.builtin.raw: |
-        cat <<EOF > /etc/systemd/system/k3s-agent.service
-        [Unit]
-        Description=Lightweight Kubernetes
-        Documentation=https://k3s.io
-        Wants=network-online.target
-        After=network-online.target
-
-        [Service]
-        Type=exec
-        ExecStart=/opt/bin/k3s agent --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --node-ip {{ ansible_host }}
-        Restart=always
-        LimitNOFILE=1048576
-        LimitNPROC=1048576
-        LimitCORE=infinity
-
-        [Install]
-        WantedBy=multi-user.target
-        EOF
+      ansible.builtin.template:
+        src: k3s_agent.service.j2
+        dest: /etc/systemd/system/k3s-agent.service
       when: inventory_hostname in groups['workers']
 
     - name: Recargar e iniciar K3s en los nodos trabajadores

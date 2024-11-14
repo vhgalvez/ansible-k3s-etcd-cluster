@@ -154,6 +154,7 @@ Recarga el demonio de systemd, habilita y arranca el servicio de K3s agent en ca
 sudo systemctl daemon-reload
 sudo systemctl enable k3s-agent
 sudo systemctl start k3s-agent
+sudo systemctl status k3s-agent
 ```
 
 ### Paso 4: Configuración de kubectl en Flatcar Container Linux
@@ -162,7 +163,7 @@ Flatcar Container Linux tiene un sistema de archivos de solo lectura, por lo que
 #### 4.1 Copiar el Archivo de Configuración de K3s
 Copia el archivo de configuración de K3s a tu directorio de usuario para usarlo con kubectl:
 
-la copia de /etc/rancher/k3s/k3s.yaml del nodo master1 tiene que hacer para los otros nodos funcionen
+la copia de `/etc/rancher/k3s/k3s.yaml` del nodo master1 tiene que hacer para los otros nodos funcionen
 
 
 ```bash
