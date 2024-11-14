@@ -222,21 +222,24 @@
       when: inventory_hostname in groups['masters'] + groups['workers']
 
     - name: Copiar kubeconfig desde el nodo maestro principal a nodos trabajadores
-      ansible.builtin.copy:
+      ansible.builtin.fetch:
         src: /etc/rancher/k3s/k3s.yaml
-        dest: /home/core/.kube/config
-        owner: core
-        group: core
-        mode: "0644"
+        dest: /tmp/k3s.yaml
+        flat: yes
       when: inventory_hostname in groups['workers']
       delegate_to: "{{ k3s_server_ip }}"
       run_once: true
 
     - name: Configurar kubeconfig en los nodos trabajadores para acceso a k3s
+      ansible.builtin.copy:
+        src: /tmp/k3s.yaml
+        dest: /home/core/.kube/config
+        owner: core
+        group: core
+        mode: '0644'
+      when: inventory_hostname in groups['workers']
+
+    - name: Actualizar kubeconfig en los nodos trabajadores para acceso a k3s
       ansible.builtin.raw: |
-        mkdir -p /home/core/.kube && \
-        cp /etc/rancher/k3s/k3s.yaml /home/core/.kube/config && \
-        sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' /home/core/.kube/config && \
-        chown core:core /home/core/.kube/config && \
-        chmod 644 /home/core/.kube/config
+        sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' /home/core/.kube/config
       when: inventory_hostname in groups['workers']
