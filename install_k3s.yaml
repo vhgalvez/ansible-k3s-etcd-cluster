@@ -165,9 +165,24 @@
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
     - name: Configurar nodos trabajadores para unirse al clúster
-      ansible.builtin.template:
-        src: k3s_agent.service.j2
-        dest: /etc/systemd/system/k3s-agent.service
+      ansible.builtin.raw: |
+        cat <<EOF > /etc/systemd/system/k3s-agent.service
+        [Unit]
+        Description=Lightweight Kubernetes Node
+        Documentation=https://k3s.io
+        After=network-online.target
+
+        [Service]
+        Type=exec
+        ExecStart=/opt/bin/k3s agent --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --node-ip {{ ansible_host }}
+        Restart=always
+        LimitNOFILE=1048576
+        LimitNPROC=1048576
+        LimitCORE=infinity
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
       when: inventory_hostname in groups['workers']
 
     - name: Recargar e iniciar K3s en los nodos trabajadores
@@ -175,6 +190,22 @@
         systemctl daemon-reload
         systemctl enable k3s-agent
         systemctl start k3s-agent
+        systemctl is-active k3s-agent
+      register: k3s_agent_start
+      when: inventory_hostname in groups['workers']
+
+    - name: Esperar a que los nodos trabajadores estén listos
+      ansible.builtin.raw: |
+        timeout=120
+        while ! systemctl is-active k3s-agent >/dev/null 2>&1 && [ $timeout -gt 0 ]; do
+          echo "Esperando a que K3s-agent esté activo... ($timeout segundos restantes)"
+          sleep 5
+          timeout=$((timeout-5))
+        done
+        if [ $timeout -le 0 ]; then
+          echo "Timeout esperando a que K3s-agent esté activo"
+          exit 1
+        fi
       when: inventory_hostname in groups['workers']
 
     - name: Configurar permisos y kubeconfig en los nodos para acceso a k3s
