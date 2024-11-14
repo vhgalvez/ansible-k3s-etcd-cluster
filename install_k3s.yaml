@@ -36,9 +36,33 @@
       when: inventory_hostname in groups['masters'] + groups['workers']
 
     - name: Configurar servicio K3s en el primer nodo maestro
-      ansible.builtin.template:
-        src: k3s_master.service.j2
-        dest: /etc/systemd/system/k3s.service
+      ansible.builtin.raw: |
+        cat <<EOF > /etc/systemd/system/k3s.service
+        [Unit]
+        Description=Lightweight Kubernetes
+        Documentation=https://k3s.io
+        Wants=network-online.target
+        After=network-online.target
+
+        [Service]
+        Type=notify
+        ExecStartPre=-/sbin/modprobe br_netfilter
+        ExecStartPre=-/sbin/modprobe overlay
+        ExecStart=/opt/bin/k3s server \
+            --cluster-init \
+            --tls-san {{ k3s_server_ip }} \
+            --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
+            --write-kubeconfig-mode 644
+        Restart=always
+        KillMode=process
+        Delegate=yes
+        LimitNOFILE=1048576
+        LimitNPROC=infinity
+        LimitCORE=infinity
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
       when: inventory_hostname == k3s_server_ip
 
     - name: Recargar e iniciar K3s en el primer nodo maestro
@@ -46,19 +70,19 @@
         systemctl daemon-reload
         systemctl enable k3s
         systemctl start k3s
-      when: inventory_hostname == k3s_server_ip
+        systemctl is-active k3s
       register: k3s_start
-      ignore_errors: yes
+      when: inventory_hostname == k3s_server_ip
 
-    - name: Obtener los logs del servicio K3s en el primer nodo maestro si falla
+    - name: Obtener los logs del servicio K3s
       ansible.builtin.raw: journalctl -u k3s -n 100 --no-pager
       register: k3s_logs
-      when: k3s_start.failed and inventory_hostname == k3s_server_ip
+      when: inventory_hostname == k3s_server_ip
 
-    - name: Mostrar logs del servicio K3s si falla
+    - name: Mostrar logs del servicio K3s
       ansible.builtin.debug:
         var: k3s_logs.stdout_lines
-      when: k3s_start.failed and inventory_hostname == k3s_server_ip
+      when: inventory_hostname == k3s_server_ip
 
     - name: Esperar a que K3s esté listo
       ansible.builtin.raw: |
@@ -72,7 +96,7 @@
           echo "Timeout esperando a que K3s esté activo"
           exit 1
         fi
-      when: inventory_hostname == k3s_server_ip and not k3s_start.failed
+      when: inventory_hostname == k3s_server_ip
 
     - name: Obtener el token de K3s desde el primer nodo maestro
       ansible.builtin.raw: cat "{{ k3s_token_path }}"
