@@ -147,6 +147,28 @@ EOF
 
 Nota: Reemplaza `<TOKEN>` con el token obtenido en el Paso 1.4.
 
+
+```bash
+sudo tee /etc/systemd/system/k3s-agent.service > /dev/null <<EOF
+[Unit]
+Description=Lightweight Kubernetes Node
+Documentation=https://k3s.io
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/bin/k3s agent --server https://10.17.4.21:6443 --token K10d65b4c3c09dd1384773f15e3f8ae91d3bbeac43aeb24b5038c1fbe23431a1d0d::server:db1ca19be34084bf1536fa068453ad63
+Restart=always
+LimitNOFILE=1048576
+LimitNPROC=1048576
+LimitCORE=infinity
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+
 #### 3.3 Iniciar y Verificar el Servicio en Nodos Trabajadores
 Recarga el demonio de systemd, habilita y arranca el servicio de K3s agent en cada nodo trabajador:
 
