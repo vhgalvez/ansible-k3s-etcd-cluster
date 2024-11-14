@@ -13,7 +13,9 @@ ExecStart=/opt/bin/k3s server \
     --token {{ k3s_token.stdout }} \
     --tls-san {{ k3s_server_ip }} \
     --node-name {{ inventory_hostname }} \
-    --datastore-endpoint {{ etcd_endpoint }}
+    --datastore-endpoint {{ etcd_endpoint }} \
+    --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
+    --write-kubeconfig-mode 644
 Restart=always
 KillMode=process
 Delegate=yes

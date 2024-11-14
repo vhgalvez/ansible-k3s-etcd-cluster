@@ -25,7 +25,7 @@ After=network-online.target
 
 [Service]
 Type=exec
-ExecStart=/opt/bin/k3s server --cluster-init --datastore-endpoint=<ETCD_ENDPOINT>
+ExecStart=/opt/bin/k3s server --cluster-init --datastore-endpoint=<ETCD_ENDPOINT> --write-kubeconfig /etc/rancher/k3s/k3s.yaml --write-kubeconfig-mode 644
 Restart=on-failure
 KillMode=process
 Delegate=yes
