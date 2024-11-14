@@ -221,20 +221,22 @@
         fi
       when: inventory_hostname in groups['masters'] + groups['workers']
 
-    - name: Copiar kubeconfig desde el nodo maestro principal a otros nodos
-      ansible.builtin.raw: |
-        scp core@{{ k3s_server_ip }}:/etc/rancher/k3s/k3s.yaml /etc/rancher/k3s/k3s.yaml
+    - name: Copiar kubeconfig desde el nodo maestro principal a nodos trabajadores
+      ansible.builtin.copy:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: /home/core/.kube/config
+        owner: core
+        group: core
+        mode: '0644'
       when: inventory_hostname in groups['workers']
+      delegate_to: "{{ k3s_server_ip }}"
+      run_once: true
 
     - name: Configurar kubeconfig en los nodos trabajadores para acceso a k3s
       ansible.builtin.raw: |
-        if [ -f /etc/rancher/k3s/k3s.yaml ]; then
-          mkdir -p /home/core/.kube && \
-          cp /etc/rancher/k3s/k3s.yaml /home/core/.kube/config && \
-          sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' /home/core/.kube/config && \
-          chown core:core /home/core/.kube/config && \
-          chmod 644 /home/core/.kube/config
-        else
-          echo "Archivo k3s.yaml no encontrado, omitiendo configuración en {{ inventory_hostname }}"
-        fi
+        mkdir -p /home/core/.kube && \
+        cp /etc/rancher/k3s/k3s.yaml /home/core/.kube/config && \
+        sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' /home/core/.kube/config && \
+        chown core:core /home/core/.kube/config && \
+        chmod 644 /home/core/.kube/config
       when: inventory_hostname in groups['workers']

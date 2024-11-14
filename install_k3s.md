@@ -279,3 +279,6 @@ sudo curl -sfL https://get.k3s.io | INSTALL_K3S_BIN_DIR=/opt/bin K3S_URL=https:/
 ```bash
 sudo systemctl status k3s-agent
 ```
+
+del nodo master1 obtener el contenido /etc/rancher/k3s/k3s.yaml
+crear un archivo con el contenido en  ~/.kube/config  en los nodos worker1 worker2 worker3

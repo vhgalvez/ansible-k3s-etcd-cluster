@@ -198,3 +198,5 @@ Si todo está bien, deberías ver todos los nodos maestros y trabajadores en est
 ## Conclusión
 
 Siguiendo estos pasos, habrás configurado correctamente el nodo maestro principal y añadido nodos maestros y trabajadores adicionales a tu clúster de K3s. Este procedimiento garantiza una configuración escalable y estable para tu clúster Kubernetes.
+
+
