@@ -276,7 +276,8 @@ Siguiendo esta guía, habrás configurado un clúster de K3s en Flatcar Containe
 
 
 sudo mkdir -p /opt/bin
-sudo curl -sfL https://get.k3s.io | INSTALL_K3S_BIN_DIR=/opt/bin K3S_URL=https://10.17.4.21:6443 K3S_TOKEN=K10d65b4c3c09dd1384773f15e3f8ae91d3bbeac43aeb24b5038c1fbe23431a1d0d::server:db1ca19be34084bf1536fa068453ad63 sh -
+
+sudo curl -sfL https://get.k3s.io | INSTALL_K3S_BIN_DIR=/opt/bin K3S_URL=https://10.17.4.21:6443 K3S_TOKEN=K1052b07bbe14c8b66f8238a9c587b22931a650d9ffde59966447eb0f9ac0b94a4d::server:1d18465c2cc2266f8caebf2e8f102ab7 sh -
 
 
 
