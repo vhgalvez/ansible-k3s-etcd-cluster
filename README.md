@@ -169,7 +169,6 @@ WantedBy=multi-user.target
 EOF
 ```
 
-
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable k3s
