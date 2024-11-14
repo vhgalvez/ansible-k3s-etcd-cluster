@@ -227,7 +227,7 @@
         dest: /home/core/.kube/config
         owner: core
         group: core
-        mode: '0644'
+        mode: "0644"
       when: inventory_hostname in groups['workers']
       delegate_to: "{{ k3s_server_ip }}"
       run_once: true
