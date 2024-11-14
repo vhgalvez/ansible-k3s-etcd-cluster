@@ -236,15 +236,9 @@
       failed_when: k3s_kubeconfig.rc != 0
 
     - name: Configurar kubeconfig en los nodos trabajadores para acceso a k3s
-      ansible.builtin.copy:
-        content: "{{ k3s_kubeconfig.stdout }}"
-        dest: /home/core/.kube/config
-        owner: core
-        group: core
-        mode: '0644'
-      when: inventory_hostname in groups['workers']
-
-    - name: Actualizar kubeconfig en los nodos trabajadores para acceso a k3s
       ansible.builtin.raw: |
-        sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' /home/core/.kube/config
+        echo "{{ k3s_kubeconfig.stdout }}" > /home/core/.kube/config && \
+        sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' /home/core/.kube/config && \
+        chown core:core /home/core/.kube/config && \
+        chmod 644 /home/core/.kube/config
       when: inventory_hostname in groups['workers']
