@@ -169,6 +169,8 @@ WantedBy=multi-user.target
 EOF
 ```
 
+## Paso 4: Instalar K3s en los Nodos Trabajadores
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable k3s
