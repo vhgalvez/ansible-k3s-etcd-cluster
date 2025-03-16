@@ -181,3 +181,8 @@ sudo systemctl start k3s
 
 ![cluster k3s](cluster_k3s_02.png)
 
+
+## Cluster k3s con etcd 
+
+![cluster k3s](cluster_k3s_03.png)
+
