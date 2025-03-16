@@ -176,3 +176,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable k3s
 sudo systemctl start k3s
 ```
+
+## Cluster k3s
+
+![cluster k3s](cluster_k3s_02.png)
+
