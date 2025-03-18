@@ -15,6 +15,7 @@ sudo mv k3s /opt/bin/
 ```
 
 #### 1.2 Crear el Archivo de Servicio k3s.service
+
 Para configurar K3s como servidor y usar etcd, crea el archivo de servicio con el siguiente contenido:
 
 ```bash
