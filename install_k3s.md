@@ -5,6 +5,7 @@ Esta guía cubre la instalación y configuración de K3s en Flatcar Container Li
 ### Paso 1: Instalación de K3s en el Nodo Maestro Principal
 
 #### 1.1 Descargar y Preparar el Binario de K3s
+
 Ejecuta los siguientes comandos en el nodo maestro principal para descargar y preparar K3s:
 
 ```bash
