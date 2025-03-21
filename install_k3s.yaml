@@ -10,6 +10,19 @@
     k3s_vip: "10.17.5.10"
 
   tasks:
+    - name: Eliminar instalación previa de K3s si existe
+      ansible.builtin.raw: |
+        systemctl stop k3s || true
+        systemctl stop k3s-agent || true
+        systemctl disable k3s || true
+        systemctl disable k3s-agent || true
+        rm -rf /etc/systemd/system/k3s.service
+        rm -rf /etc/systemd/system/k3s-agent.service
+        rm -rf /opt/bin/k3s /opt/bin/kubectl /opt/bin/crictl /opt/bin/ctr
+        rm -rf /etc/rancher /var/lib/rancher
+      ignore_errors: true
+      when: inventory_hostname in groups['masters'] + groups['workers']
+
     - name: Crear directorios necesarios
       ansible.builtin.raw: |
         mkdir -p /opt/bin
