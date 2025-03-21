@@ -1,164 +1,123 @@
-- name: Instalar y Configurar K3s con etcd en el Clúster (con VIP en SAN)
-  hosts: all
+- name: Instalar y Configurar Traefik como Ingress Controller en Docker
+  hosts: load_balancers
   become: true
-  gather_facts: no
 
   vars:
-    k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
-    k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
-    k3s_server_ip: "10.17.4.21"
-    k3s_vip: "10.17.5.10"
+    traefik_config_dir: "/etc/traefik"
+    traefik_home_tmp: "/tmp/kubeconfig"
+    traefik_kubeconfig_from_master: "/etc/rancher/k3s/k3s.yaml"
+    k3s_master_ip: "10.17.4.21"
+    k8s_api_vip: "10.17.5.10"
 
   tasks:
-    - name: Eliminar instalación previa de K3s si existe
-      ansible.builtin.raw: |
-        systemctl stop k3s || true
-        systemctl stop k3s-agent || true
-        systemctl disable k3s || true
-        systemctl disable k3s-agent || true
-        rm -rf /etc/systemd/system/k3s.service
-        rm -rf /etc/systemd/system/k3s-agent.service
-        rm -rf /opt/bin/k3s /opt/bin/kubectl /opt/bin/crictl /opt/bin/ctr
-        rm -rf /etc/rancher /var/lib/rancher
-      ignore_errors: true
-      when: inventory_hostname in groups['masters'] + groups['workers']
+    - name: Eliminar conflictos con Podman
+      package:
+        name: podman-docker
+        state: absent
 
-    - name: Crear directorios necesarios
-      ansible.builtin.raw: |
-        mkdir -p /opt/bin
-        mkdir -p /etc/rancher/k3s
-        mkdir -p /var/lib/rancher/k3s/server
-      when: inventory_hostname in groups['masters'] + groups['workers']
+    - name: Añadir repo oficial Docker CE (solo AlmaLinux/RHEL/CentOS)
+      get_url:
+        url: https://download.docker.com/linux/centos/docker-ce.repo
+        dest: /etc/yum.repos.d/docker-ce.repo
+      when: ansible_os_family == "RedHat"
 
-    - name: Descargar e instalar K3s
-      ansible.builtin.raw: |
-        curl -Lo /opt/bin/k3s "{{ k3s_url }}" && chmod +x /opt/bin/k3s
-      args:
-        timeout: 600
-      when: inventory_hostname in groups['masters'] + groups['workers']
+    - name: Instalar Docker CE y plugins
+      package:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
 
-    - name: Crear enlaces simbólicos en Flatcar
-      ansible.builtin.raw: |
-        ln -sf /opt/bin/k3s /opt/bin/kubectl
-        ln -sf /opt/bin/k3s /opt/bin/crictl
-        ln -sf /opt/bin/k3s /opt/bin/ctr
-      when: inventory_hostname in groups['masters'] + groups['workers']
+    - name: Habilitar e iniciar Docker
+      systemd:
+        name: docker
+        enabled: yes
+        state: started
 
-    - name: Configurar servicio K3s en primer master
-      ansible.builtin.raw: |
-        cat <<EOF > /etc/systemd/system/k3s.service
-        [Unit]
-        Description=Lightweight Kubernetes
-        Wants=network-online.target
-        After=network-online.target
+    - name: Crear directorio de configuración de Traefik
+      file:
+        path: "{{ traefik_config_dir }}"
+        state: directory
+        mode: "0755"
 
-        [Service]
-        Type=notify
-        ExecStartPre=-/sbin/modprobe br_netfilter
-        ExecStartPre=-/sbin/modprobe overlay
-        ExecStart=/opt/bin/k3s server \
-            --cluster-init \
-            --tls-san {{ k3s_server_ip }} \
-            --tls-san {{ k3s_vip }} \
-            --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
-            --write-kubeconfig-mode 644
-        Restart=always
-        KillMode=process
-        Delegate=yes
-        LimitNOFILE=1048576
-        LimitNPROC=infinity
-        LimitCORE=infinity
-
-        [Install]
-        WantedBy=multi-user.target
-        EOF
-      when: inventory_hostname == k3s_server_ip
-
-    - name: Recargar e iniciar K3s en el primer nodo
-      ansible.builtin.raw: |
-        systemctl daemon-reload
-        systemctl enable k3s
-        systemctl restart k3s
-      when: inventory_hostname == k3s_server_ip
-
-    - name: Obtener token del primer nodo
-      ansible.builtin.raw: cat "{{ k3s_token_path }}"
-      register: k3s_token
-      delegate_to: "{{ k3s_server_ip }}"
+    # Copiar kubeconfig correcto desde el nodo master al controlador (localhost)
+    - name: Obtener kubeconfig actualizado desde master1
+      fetch:
+        src: "{{ traefik_kubeconfig_from_master }}"
+        dest: "{{ traefik_home_tmp }}"
+        flat: yes
+      delegate_to: "{{ k3s_master_ip }}"
       run_once: true
-      failed_when: k3s_token.rc != 0
 
-    - name: Configurar nodos masters adicionales
-      ansible.builtin.raw: |
-        cat <<EOF > /etc/systemd/system/k3s.service
-        [Unit]
-        Description=Lightweight Kubernetes
-        Wants=network-online.target
-        After=network-online.target
+    - name: Corregir IP en el kubeconfig (usar VIP)
+      delegate_to: localhost
+      run_once: true
+      become: false
+      replace:
+        path: "{{ traefik_home_tmp }}"
+        regexp: '127.0.0.1'
+        replace: "{{ k8s_api_vip }}"
 
-        [Service]
-        Type=notify
-        ExecStartPre=-/sbin/modprobe br_netfilter
-        ExecStartPre=-/sbin/modprobe overlay
-        ExecStart=/opt/bin/k3s server \
-            --server https://{{ k3s_vip }}:6443 \
-            --token {{ k3s_token.stdout }} \
-            --tls-san {{ k3s_server_ip }} \
-            --tls-san {{ k3s_vip }} \
-            --node-name {{ inventory_hostname }}
-        Restart=always
-        KillMode=process
-        Delegate=yes
-        LimitNOFILE=1048576
-        LimitNPROC=infinity
-        LimitCORE=infinity
+    - name: Crear ServiceAccount y ClusterRoleBinding para Traefik
+      delegate_to: localhost
+      run_once: true
+      become: false
+      environment:
+        KUBECONFIG: "{{ traefik_home_tmp }}"
+      shell: |
+        kubectl -n kube-system create serviceaccount traefik-ingress-controller --dry-run=client -o yaml | kubectl apply -f -
+        kubectl create clusterrolebinding traefik-ingress-controller --clusterrole=cluster-admin --serviceaccount=kube-system:traefik-ingress-controller --dry-run=client -o yaml | kubectl apply -f -
 
-        [Install]
-        WantedBy=multi-user.target
-        EOF
-      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
+    - name: Obtener token para Traefik
+      delegate_to: localhost
+      run_once: true
+      become: false
+      environment:
+        KUBECONFIG: "{{ traefik_home_tmp }}"
+      shell: |
+        TOKEN_NAME=$(kubectl -n kube-system get sa/traefik-ingress-controller -o jsonpath='{.secrets[0].name}')
+        kubectl -n kube-system get secret $TOKEN_NAME -o jsonpath='{.data.token}' | base64 -d
+      register: traefik_token_result
 
-    - name: Recargar e iniciar servicio en masters adicionales
-      ansible.builtin.raw: |
-        systemctl daemon-reload
-        systemctl enable k3s
-        systemctl restart k3s
-      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
+    - name: Copiar kubeconfig a nodos Traefik
+      copy:
+        src: "{{ traefik_home_tmp }}"
+        dest: "{{ traefik_config_dir }}/kubeconfig"
+        mode: "0644"
 
-    - name: Configurar nodos workers
-      ansible.builtin.raw: |
-        cat <<EOF > /etc/systemd/system/k3s-agent.service
-        [Unit]
-        Description=Lightweight Kubernetes Node
-        After=network-online.target
+    - name: Crear archivo acme.json
+      copy:
+        dest: "{{ traefik_config_dir }}/acme.json"
+        content: "{}"
+        mode: "0600"
 
-        [Service]
-        Type=exec
-        ExecStart=/opt/bin/k3s agent \
-          --server https://{{ k3s_vip }}:6443 \
-          --token {{ k3s_token.stdout }} \
-          --node-ip {{ ansible_host }}
-        Restart=always
-        LimitNOFILE=1048576
-        LimitNPROC=1048576
-        LimitCORE=infinity
+    - name: Crear archivo traefik.toml con el token obtenido
+      template:
+        src: "traefik/traefik.toml.j2"
+        dest: "{{ traefik_config_dir }}/traefik.toml"
+        mode: "0644"
+      vars:
+        traefik_token: "{{ traefik_token_result.stdout }}"
 
-        [Install]
-        WantedBy=multi-user.target
-        EOF
-      when: inventory_hostname in groups['workers']
+    - name: Crear archivo docker-compose.yml
+      template:
+        src: "traefik/docker-compose.yml.j2"
+        dest: "{{ traefik_config_dir }}/docker-compose.yml"
+        mode: "0644"
 
-    - name: Recargar e iniciar k3s-agent en workers
-      ansible.builtin.raw: |
-        systemctl daemon-reload
-        systemctl enable k3s-agent
-        systemctl restart k3s-agent
-      when: inventory_hostname in groups['workers']
+    - name: Reiniciar contenedor Traefik
+      shell: |
+        docker compose -f {{ traefik_config_dir }}/docker-compose.yml down || true
+        docker compose -f {{ traefik_config_dir }}/docker-compose.yml up -d
+      args:
+        executable: /bin/bash
 
-    - name: Copiar kubeconfig al nodo local y reemplazar IP por VIP
-      ansible.builtin.raw: |
-        cp /etc/rancher/k3s/k3s.yaml /home/core/.kube/config && \
-        sed -i 's/127.0.0.1/{{ k3s_vip }}/g' /home/core/.kube/config && \
-        chown core:core /home/core/.kube/config && \
-        chmod 644 /home/core/.kube/config
-      when: inventory_hostname == k3s_server_ip
+    - name: Verificar estado de Traefik
+      shell: docker ps -a | grep traefik
+      register: traefik_status
+
+    - name: Mostrar resultado
+      debug:
+        msg: "{{ traefik_status.stdout_lines }}"
