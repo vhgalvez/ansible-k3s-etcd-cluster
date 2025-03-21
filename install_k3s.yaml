@@ -1,46 +1,41 @@
-- name: Instalar y Configurar K3s con etcd en el Clúster
+- name: Instalar y Configurar K3s con etcd en el Clúster (con VIP en SAN)
   hosts: all
   become: true
-  gather_facts: no # Disable gathering facts to avoid Python dependency on Flatcar
+  gather_facts: no
 
   vars:
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
     k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
-    k3s_server_ip: "10.17.4.21" # IP del nodo maestro principal
+    k3s_server_ip: "10.17.4.21"
+    k3s_vip: "10.17.5.10"
 
   tasks:
-    - name: Asegurar que los directorios necesarios existen
+    - name: Crear directorios necesarios
       ansible.builtin.raw: |
         mkdir -p /opt/bin
         mkdir -p /etc/rancher/k3s
         mkdir -p /var/lib/rancher/k3s/server
       when: inventory_hostname in groups['masters'] + groups['workers']
 
-    - name: Descargar e instalar K3s en todos los nodos
+    - name: Descargar e instalar K3s
       ansible.builtin.raw: |
         curl -Lo /opt/bin/k3s "{{ k3s_url }}" && chmod +x /opt/bin/k3s
       args:
         timeout: 600
       when: inventory_hostname in groups['masters'] + groups['workers']
 
-    - name: Verificar que el binario de K3s no está en uso
-      ansible.builtin.raw: |
-        fuser -k /opt/bin/k3s || true
-      when: inventory_hostname == k3s_server_ip
-
-    - name: Crear enlaces simbólicos para herramientas de K3s en Flatcar
+    - name: Crear enlaces simbólicos en Flatcar
       ansible.builtin.raw: |
         ln -sf /opt/bin/k3s /opt/bin/kubectl
         ln -sf /opt/bin/k3s /opt/bin/crictl
         ln -sf /opt/bin/k3s /opt/bin/ctr
       when: inventory_hostname in groups['masters'] + groups['workers']
 
-    - name: Configurar servicio K3s en el primer nodo maestro
+    - name: Configurar servicio K3s en primer master
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s.service
         [Unit]
         Description=Lightweight Kubernetes
-        Documentation=https://k3s.io
         Wants=network-online.target
         After=network-online.target
 
@@ -51,6 +46,7 @@
         ExecStart=/opt/bin/k3s server \
             --cluster-init \
             --tls-san {{ k3s_server_ip }} \
+            --tls-san {{ k3s_vip }} \
             --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
             --write-kubeconfig-mode 644
         Restart=always
@@ -65,58 +61,25 @@
         EOF
       when: inventory_hostname == k3s_server_ip
 
-    - name: Recargar e iniciar K3s en el primer nodo maestro
+    - name: Recargar e iniciar K3s en el primer nodo
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s
-        systemctl start k3s
-        systemctl is-active k3s
-      register: k3s_start
+        systemctl restart k3s
       when: inventory_hostname == k3s_server_ip
 
-    - name: Obtener los logs del servicio K3s
-      ansible.builtin.raw: journalctl -u k3s -n 100 --no-pager
-      register: k3s_logs
-      when: inventory_hostname == k3s_server_ip
-
-    - name: Mostrar logs del servicio K3s
-      ansible.builtin.debug:
-        var: k3s_logs.stdout_lines
-      when: inventory_hostname == k3s_server_ip
-
-    - name: Esperar a que K3s esté listo
-      ansible.builtin.raw: |
-        timeout=120
-        while ! systemctl is-active k3s >/dev/null 2>&1 && [ $timeout -gt 0 ]; do
-          echo "Esperando a que K3s esté activo... ($timeout segundos restantes)"
-          sleep 5
-          timeout=$((timeout-5))
-        done
-        if [ $timeout -le 0 ]; then
-          echo "Timeout esperando a que K3s esté activo"
-          exit 1
-        fi
-      when: inventory_hostname == k3s_server_ip
-
-    - name: Obtener el token de K3s desde el primer nodo maestro
+    - name: Obtener token del primer nodo
       ansible.builtin.raw: cat "{{ k3s_token_path }}"
       register: k3s_token
       delegate_to: "{{ k3s_server_ip }}"
       run_once: true
       failed_when: k3s_token.rc != 0
 
-    - name: Obtener los logs del servicio K3s si el token no se encuentra
-      ansible.builtin.raw: journalctl -u k3s -n 100 --no-pager
-      when: k3s_token.rc != 0
-      delegate_to: "{{ k3s_server_ip }}"
-      run_once: true
-
-    - name: Configurar nodos maestros adicionales para unirse al clúster
+    - name: Configurar nodos masters adicionales
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s.service
         [Unit]
         Description=Lightweight Kubernetes
-        Documentation=https://k3s.io
         Wants=network-online.target
         After=network-online.target
 
@@ -125,9 +88,10 @@
         ExecStartPre=-/sbin/modprobe br_netfilter
         ExecStartPre=-/sbin/modprobe overlay
         ExecStart=/opt/bin/k3s server \
-            --server https://{{ k3s_server_ip }}:6443 \
+            --server https://{{ k3s_vip }}:6443 \
             --token {{ k3s_token.stdout }} \
             --tls-san {{ k3s_server_ip }} \
+            --tls-san {{ k3s_vip }} \
             --node-name {{ inventory_hostname }}
         Restart=always
         KillMode=process
@@ -141,40 +105,26 @@
         EOF
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
-    - name: Recargar e iniciar K3s en nodos maestros adicionales
+    - name: Recargar e iniciar servicio en masters adicionales
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s
-        systemctl start k3s
-        systemctl is-active k3s
-      register: k3s_join_start
+        systemctl restart k3s
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
-    - name: Esperar a que los nodos maestros adicionales estén listos
-      ansible.builtin.raw: |
-        timeout=120
-        while ! systemctl is-active k3s >/dev/null 2>&1 && [ $timeout -gt 0 ]; do
-          echo "Esperando a que K3s esté activo... ($timeout segundos restantes)"
-          sleep 5
-          timeout=$((timeout-5))
-        done
-        if [ $ timeout -le 0 ]; then
-          echo "Timeout esperando a que K3s esté activo"
-          exit 1
-        fi
-      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
-
-    - name: Configurar nodos trabajadores para unirse al clúster
+    - name: Configurar nodos workers
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s-agent.service
         [Unit]
         Description=Lightweight Kubernetes Node
-        Documentation=https://k3s.io
         After=network-online.target
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s agent --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --node-ip {{ ansible_host }}
+        ExecStart=/opt/bin/k3s agent \
+          --server https://{{ k3s_vip }}:6443 \
+          --token {{ k3s_token.stdout }} \
+          --node-ip {{ ansible_host }}
         Restart=always
         LimitNOFILE=1048576
         LimitNPROC=1048576
@@ -183,62 +133,19 @@
         [Install]
         WantedBy=multi-user.target
         EOF
-      when: inventory_hostname in groups['workers'] or inventory_hostname == 'storage1'
+      when: inventory_hostname in groups['workers']
 
-    - name: Recargar e iniciar K3s en los nodos trabajadores
+    - name: Recargar e iniciar k3s-agent en workers
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s-agent
-        systemctl start k3s-agent
-        systemctl is-active k3s-agent
-      register: k3s_agent_start
-      when: inventory_hostname in groups['workers'] or inventory_hostname == 'storage1'
-
-    - name: Esperar a que los nodos trabajadores estén listos
-      ansible.builtin.raw: |
-        timeout=120
-        while ! systemctl is-active k3s-agent >/dev/null 2>&1 && [ $timeout -gt 0 ]; do
-          echo "Esperando a que K3s-agent esté activo... ($timeout segundos restantes)"
-          sleep 5
-          timeout=$((timeout-5))
-        done
-        if [ $timeout -le 0 ]; then
-          echo "Timeout esperando a que K3s-agent esté activo"
-          exit 1
-        fi
-      when: inventory_hostname in groups['workers'] or inventory_hostname == 'storage1'
-
-    - name: Configurar permisos y kubeconfig en los nodos para acceso a k3s
-      ansible.builtin.raw: |
-        if [ -f /etc/rancher/k3s/k3s.yaml ]; then
-          mkdir -p /home/core/.kube && \
-          cp /etc/rancher/k3s/k3s.yaml /home/core/.kube/config && \
-          sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' /home/core/.kube/config && \
-          chown core:core /home/core/.kube/config && \
-          chmod 644 /home/core/.kube/config
-        else
-          echo "Archivo k3s.yaml no encontrado, omitiendo configuración en {{ inventory_hostname }}"
-        fi
-      when: inventory_hostname in groups['masters'] + groups['workers']
-
-    - name: Crear directorio .kube en los nodos trabajadores
-      ansible.builtin.raw: |
-        mkdir -p /home/core/.kube && \
-        chown core:core /home/core/.kube && \
-        chmod 755 /home/core/.kube
+        systemctl restart k3s-agent
       when: inventory_hostname in groups['workers']
 
-    - name: Obtener kubeconfig desde el primer nodo maestro
-      ansible.builtin.raw: cat /etc/rancher/k3s/k3s.yaml
-      register: k3s_kubeconfig
-      delegate_to: "{{ k3s_server_ip }}"
-      run_once: true
-      failed_when: k3s_kubeconfig.rc != 0
-
-    - name: Configurar kubeconfig en los nodos trabajadores para acceso a k3s
+    - name: Copiar kubeconfig al nodo local y reemplazar IP por VIP
       ansible.builtin.raw: |
-        echo "{{ k3s_kubeconfig.stdout }}" > /home/core/.kube/config && \
-        sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' /home/core/.kube/config && \
+        cp /etc/rancher/k3s/k3s.yaml /home/core/.kube/config && \
+        sed -i 's/127.0.0.1/{{ k3s_vip }}/g' /home/core/.kube/config && \
         chown core:core /home/core/.kube/config && \
         chmod 644 /home/core/.kube/config
-      when: inventory_hostname in groups['workers']
+      when: inventory_hostname == k3s_server_ip
