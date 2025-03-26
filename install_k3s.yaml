@@ -1,94 +1,113 @@
 - name: Instalar y Configurar K3s con etcd en el Clúster (con VIP en SAN)
-  hosts: masters:workers
+  hosts: all
   become: true
+  gather_facts: false
 
   vars:
-    k3s_url: "https://github.com/k3s-io/k3s/releases/download/v1.28.5%2Bk3s1/k3s"
-    k3s_binary_path: "/usr/local/bin/k3s"
-    k3s_service_dir: "/etc/systemd/system"
-    k3s_config_dir: "/etc/rancher/k3s"
-    k3s_token_file: "/var/lib/rancher/k3s/server/node-token"
-    vip: "10.17.5.10"
+    k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
+    k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
+    k3s_server_ip: "10.17.4.21"
+    k8s_api_vip: "10.17.5.10"
 
   tasks:
     - name: Crear directorios necesarios
-      file:
-        path: "{{ item }}"
-        state: directory
-        mode: "0755"
-      loop:
-        - "{{ k3s_config_dir }}"
-        - "/var/lib/rancher/k3s"
-        - "/usr/local/bin"
+      raw: |
+        mkdir -p /opt/bin
+        mkdir -p /etc/rancher/k3s
+        mkdir -p /var/lib/rancher/k3s/server
 
     - name: Descargar e instalar K3s
-      get_url:
-        url: "{{ k3s_url }}"
-        dest: "{{ k3s_binary_path }}"
-        mode: '0755'
+      raw: |
+        curl -Lo /opt/bin/k3s "{{ k3s_url }}" && chmod +x /opt/bin/k3s
+      args:
+        timeout: 600
 
-    - name: Crear enlaces simbólicos en Flatcar
-      file:
-        src: "/usr/local/bin/k3s"
-        dest: "/usr/bin/k3s"
-        state: link
-        force: yes
+    - name: Crear enlaces simbólicos
+      raw: |
+        ln -sf /opt/bin/k3s /opt/bin/kubectl
+        ln -sf /opt/bin/k3s /opt/bin/crictl
+        ln -sf /opt/bin/k3s /opt/bin/ctr
 
-    - name: Configurar servicio K3s en primer master
-      template:
-        src: "templates/k3s_master.service.j2"
-        dest: "{{ k3s_service_dir }}/k3s.service"
-      when: inventory_hostname == groups['masters'][0]
+    - name: Configurar servicio en primer master
+      raw: |
+        cat <<EOF > /etc/systemd/system/k3s.service
+        [Unit]
+        Description=K3s
+        Wants=network-online.target
+        After=network-online.target
 
-    - name: Recargar e iniciar K3s en el primer nodo
-      systemd:
-        daemon_reload: yes
-        name: k3s
-        state: restarted
-        enabled: yes
-      when: inventory_hostname == groups['masters'][0]
+        [Service]
+        ExecStart=/opt/bin/k3s server \
+          --cluster-init \
+          --tls-san {{ k3s_server_ip }} \
+          --tls-san {{ k8s_api_vip }} \
+          --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
+          --write-kubeconfig-mode 644
+        Restart=always
 
-    - name: Obtener token del primer nodo
-      shell: "cat {{ k3s_token_file }}"
-      register: k3s_token
-      when: inventory_hostname == groups['masters'][0]
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+      when: inventory_hostname == k3s_server_ip
+
+    - name: Iniciar K3s en primer master
+      raw: |
+        systemctl daemon-reload && systemctl enable k3s && systemctl restart k3s && systemctl is-active k3s
+      when: inventory_hostname == k3s_server_ip
+
+    - name: Obtener token
+      raw: cat {{ k3s_token_path }}
+      delegate_to: "{{ k3s_server_ip }}"
       run_once: true
+      register: k3s_token
 
-    - name: Configurar nodos masters adicionales
-      template:
-        src: "templates/k3s_master_join.service.j2"
-        dest: "{{ k3s_service_dir }}/k3s.service"
-      when: inventory_hostname != groups['masters'][0] and inventory_hostname in groups['masters']
-      vars:
-        token: "{{ hostvars[groups['masters'][0]]['k3s_token']['stdout'] }}"
+    - name: Configurar otros masters
+      raw: |
+        cat <<EOF > /etc/systemd/system/k3s.service
+        [Unit]
+        Description=K3s
+        Wants=network-online.target
+        After=network-online.target
 
-    - name: Recargar e iniciar servicio en masters adicionales
-      systemd:
-        daemon_reload: yes
-        name: k3s
-        state: restarted
-        enabled: yes
-      when: inventory_hostname != groups['masters'][0] and inventory_hostname in groups['masters']
+        [Service]
+        ExecStart=/opt/bin/k3s server \
+          --server https://{{ k8s_api_vip }}:6443 \
+          --token {{ k3s_token.stdout }} \
+          --tls-san {{ k3s_server_ip }} \
+          --tls-san {{ k8s_api_vip }} \
+          --node-name {{ inventory_hostname }}
+        Restart=always
 
-    - name: Configurar nodos workers
-      template:
-        src: "templates/k3s_agent.service.j2"
-        dest: "{{ k3s_service_dir }}/k3s-agent.service"
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
+
+    - name: Iniciar K3s en otros masters
+      raw: |
+        systemctl daemon-reload && systemctl enable k3s && systemctl restart k3s && systemctl is-active k3s
+      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
+
+    - name: Configurar workers
+      raw: |
+        cat <<EOF > /etc/systemd/system/k3s-agent.service
+        [Unit]
+        Description=K3s Agent
+        After=network-online.target
+
+        [Service]
+        ExecStart=/opt/bin/k3s agent \
+          --server https://{{ k8s_api_vip }}:6443 \
+          --token {{ k3s_token.stdout }} \
+          --node-ip {{ ansible_host }}
+        Restart=always
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
       when: inventory_hostname in groups['workers']
-      vars:
-        token: "{{ hostvars[groups['masters'][0]]['k3s_token']['stdout'] }}"
 
-    - name: Recargar e iniciar k3s-agent en workers
-      systemd:
-        daemon_reload: yes
-        name: k3s-agent
-        state: restarted
-        enabled: yes
+    - name: Iniciar agent en workers
+      raw: |
+        systemctl daemon-reload && systemctl enable k3s-agent && systemctl restart k3s-agent && systemctl is-active k3s-agent
       when: inventory_hostname in groups['workers']
-
-    - name: Copiar kubeconfig al nodo local y reemplazar IP por VIP
-      shell: |
-        mkdir -p /home/core/.kube
-        cp /etc/rancher/k3s/k3s.yaml /home/core/.kube/config
-        sed -i 's/127.0.0.1/{{ vip }}/g' /home/core/.kube/config
-      when: inventory_hostname == groups['masters'][0]
