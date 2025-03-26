@@ -42,7 +42,6 @@
         state: directory
         mode: "0755"
 
-    # Copiar kubeconfig correcto desde el nodo master al controlador (localhost)
     - name: Obtener kubeconfig actualizado desde master1
       fetch:
         src: "{{ traefik_kubeconfig_from_master }}"
@@ -95,7 +94,7 @@
 
     - name: Crear archivo traefik.toml con el token obtenido
       template:
-        src: "traefik/traefik.toml.j2"
+        src: "templates/traefik.toml.j2"
         dest: "{{ traefik_config_dir }}/traefik.toml"
         mode: "0644"
       vars:
@@ -103,7 +102,7 @@
 
     - name: Crear archivo docker-compose.yml
       template:
-        src: "traefik/docker-compose.yml.j2"
+        src: "templates/docker-compose.yml.j2"
         dest: "{{ traefik_config_dir }}/docker-compose.yml"
         mode: "0644"
 
