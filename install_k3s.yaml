@@ -67,7 +67,10 @@
         KUBECONFIG: "{{ traefik_home_tmp }}"
       shell: |
         kubectl -n kube-system create serviceaccount traefik-ingress-controller --dry-run=client -o yaml | kubectl apply -f -
-        kubectl create clusterrolebinding traefik-ingress-controller --clusterrole=cluster-admin --serviceaccount=kube-system:traefik-ingress-controller --dry-run=client -o yaml | kubectl apply -f -
+        kubectl create clusterrolebinding traefik-ingress-controller \
+          --clusterrole=cluster-admin \
+          --serviceaccount=kube-system:traefik-ingress-controller \
+          --dry-run=client -o yaml | kubectl apply -f -
 
     - name: Obtener token para Traefik
       delegate_to: localhost
@@ -79,6 +82,10 @@
         TOKEN_NAME=$(kubectl -n kube-system get sa/traefik-ingress-controller -o jsonpath='{.secrets[0].name}')
         kubectl -n kube-system get secret $TOKEN_NAME -o jsonpath='{.data.token}' | base64 -d
       register: traefik_token_result
+
+    - name: Verificar valor del token obtenido
+      debug:
+        msg: "Token Traefik: {{ traefik_token_result.stdout }}"
 
     - name: Copiar kubeconfig a nodos Traefik
       copy:
@@ -94,7 +101,7 @@
 
     - name: Crear archivo traefik.toml con el token obtenido
       template:
-        src: "templates/traefik.toml.j2"
+        src: "traefik/traefik.toml.j2"
         dest: "{{ traefik_config_dir }}/traefik.toml"
         mode: "0644"
       vars:
@@ -102,7 +109,7 @@
 
     - name: Crear archivo docker-compose.yml
       template:
-        src: "templates/docker-compose.yml.j2"
+        src: "traefik/docker-compose.yml.j2"
         dest: "{{ traefik_config_dir }}/docker-compose.yml"
         mode: "0644"
 
