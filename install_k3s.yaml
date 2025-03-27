@@ -82,11 +82,15 @@
       delegate_to: "{{ groups['masters'][0] }}"
       run_once: true
 
-    - name: Esperar que el VIP esté accesible (API)
-      ansible.builtin.wait_for:
-        host: "{{ k3s_server_ip }}"
-        port: 6443
-        timeout: 60
+    - name: Esperar que el VIP esté accesible (API) usando curl
+      ansible.builtin.shell: |
+        for i in {1..30}; do
+          curl -sk https://{{ k3s_server_ip }}:6443/version && exit 0
+          echo "Esperando al API Server ({{ k3s_server_ip }})..."
+          sleep 5
+        done
+        echo "Timeout esperando al API Server"
+        exit 1
       delegate_to: localhost
       run_once: true
 
