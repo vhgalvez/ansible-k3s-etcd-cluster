@@ -10,20 +10,38 @@
     k8s_api_vip: "10.17.5.10"
 
   tasks:
+    # Limpiar instalaciones previas de K3s
+    - name: Eliminar instalaciones previas de K3s
+      ansible.builtin.raw: |
+        # Detener el servicio de K3s si existe
+        systemctl stop k3s || true
+        # Deshabilitar el servicio de K3s
+        systemctl disable k3s || true
+        # Eliminar los archivos de configuración previos de K3s
+        rm -rf /etc/rancher/k3s
+        rm -f /opt/bin/k3s /opt/bin/kubectl /opt/bin/crictl /opt/bin/ctr
+        # Eliminar el directorio de datos
+        rm -rf /var/lib/rancher/k3s
+        rm -f /etc/systemd/system/k3s.service
+
+    # Asegurar que los directorios necesarios existen
     - name: Asegurar que los directorios necesarios existen
       ansible.builtin.raw: |
         mkdir -p /opt/bin /etc/rancher/k3s /var/lib/rancher/k3s/server
 
+    # Descargar e instalar K3s
     - name: Descargar e instalar K3s
       ansible.builtin.raw: |
         curl -Lo /opt/bin/k3s "{{ k3s_url }}" && chmod +x /opt/bin/k3s
 
+    # Crear enlaces simbólicos para herramientas de K3s
     - name: Crear enlaces simbólicos para herramientas de K3s
       ansible.builtin.raw: |
         ln -sf /opt/bin/k3s /opt/bin/kubectl
         ln -sf /opt/bin/k3s /opt/bin/crictl
         ln -sf /opt/bin/k3s /opt/bin/ctr
 
+    # Configurar primer nodo master (cluster-init)
     - name: Configurar primer nodo master (cluster-init)
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s.service
@@ -55,6 +73,7 @@
         EOF
       when: inventory_hostname == groups['masters'][0]
 
+    # Iniciar servicio K3s en primer master
     - name: Iniciar servicio K3s en primer master
       ansible.builtin.raw: |
         systemctl daemon-reload
@@ -62,6 +81,7 @@
         systemctl restart k3s
       when: inventory_hostname == groups['masters'][0]
 
+    # Esperar a que K3s esté activo en el primer master
     - name: Esperar a que K3s esté activo en el primer master
       ansible.builtin.raw: |
         timeout=180
@@ -76,12 +96,14 @@
         fi
       when: inventory_hostname == groups['masters'][0]
 
+    # Obtener token del primer nodo master
     - name: Obtener token del primer nodo master
       ansible.builtin.raw: cat "{{ k3s_token_path }}"
       register: k3s_token
       delegate_to: "{{ groups['masters'][0] }}"
       run_once: true
 
+    # Esperar que el VIP esté accesible (API) usando curl
     - name: Esperar que el VIP esté accesible (API) usando curl
       ansible.builtin.shell: |
         for i in {1..30}; do
@@ -94,6 +116,7 @@
       delegate_to: localhost
       run_once: true
 
+    # Configurar nodos masters adicionales
     - name: Configurar nodos masters adicionales
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s.service
@@ -125,6 +148,7 @@
         EOF
       when: inventory_hostname in groups['masters'] and inventory_hostname != groups['masters'][0]
 
+    # Iniciar masters adicionales
     - name: Iniciar masters adicionales
       ansible.builtin.raw: |
         systemctl daemon-reload
@@ -132,6 +156,7 @@
         systemctl start k3s
       when: inventory_hostname in groups['masters'] and inventory_hostname != groups['masters'][0]
 
+    # Configurar agentes en workers y storage
     - name: Configurar agentes en workers y storage
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s-agent.service
@@ -157,6 +182,7 @@
         EOF
       when: inventory_hostname in groups['workers'] + groups['storage']
 
+    # Iniciar agentes en workers y storage
     - name: Iniciar agentes en workers y storage
       ansible.builtin.raw: |
         systemctl daemon-reload
@@ -164,6 +190,7 @@
         systemctl start k3s-agent
       when: inventory_hostname in groups['workers'] + groups['storage']
 
+    # Verificar estado del clúster (solo en el primer master)
     - name: Verificar estado del clúster (solo en el primer master)
       ansible.builtin.raw: |
         /opt/bin/k3s kubectl get nodes -o wide
