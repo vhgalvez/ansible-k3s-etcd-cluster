@@ -6,15 +6,14 @@
   vars:
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
     k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
-    k3s_server_ip: "{{ k3s_master_ip }}"
-    k8s_api_vip: "10.17.5.10"  # VIP que queremos añadir a los certificados
+    k3s_server_ip: "{{ k8s_api_vip }}"
+    k8s_api_vip: "10.17.5.10"
 
   tasks:
+
     - name: Asegurar que los directorios necesarios existen
       ansible.builtin.raw: |
-        mkdir -p /opt/bin
-        mkdir -p /etc/rancher/k3s
-        mkdir -p /var/lib/rancher/k3s/server
+        mkdir -p /opt/bin /etc/rancher/k3s /var/lib/rancher/k3s/server
 
     - name: Descargar e instalar K3s
       ansible.builtin.raw: |
@@ -26,7 +25,7 @@
         ln -sf /opt/bin/k3s /opt/bin/crictl
         ln -sf /opt/bin/k3s /opt/bin/ctr
 
-    - name: Configurar servicio K3s en el primer nodo master
+    - name: Configurar primer nodo master (cluster-init)
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s.service
         [Unit]
@@ -42,7 +41,7 @@
         ExecStart=/opt/bin/k3s server \
           --cluster-init \
           --tls-san {{ k3s_server_ip }} \
-          --tls-san {{ k8s_api_vip }} \
+          --tls-san {{ ansible_host }} \
           --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
           --write-kubeconfig-mode 644
         Restart=always
@@ -55,16 +54,16 @@
         [Install]
         WantedBy=multi-user.target
         EOF
-      when: inventory_hostname == k3s_server_ip
+      when: inventory_hostname == groups['masters'][0]
 
-    - name: Iniciar servicio en el primer nodo master
+    - name: Iniciar servicio K3s en primer master
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s
         systemctl restart k3s
-      when: inventory_hostname == k3s_server_ip
+      when: inventory_hostname == groups['masters'][0]
 
-    - name: Esperar a que k3s esté activo
+    - name: Esperar a que K3s esté activo en el primer master
       ansible.builtin.raw: |
         timeout=120
         while ! systemctl is-active k3s >/dev/null 2>&1 && [ $timeout -gt 0 ]; do
@@ -76,12 +75,20 @@
           echo "Timeout esperando a que K3s esté activo"
           exit 1
         fi
-      when: inventory_hostname == k3s_server_ip
+      when: inventory_hostname == groups['masters'][0]
 
     - name: Obtener token del primer nodo master
       ansible.builtin.raw: cat "{{ k3s_token_path }}"
       register: k3s_token
-      delegate_to: "{{ k3s_server_ip }}"
+      delegate_to: "{{ groups['masters'][0] }}"
+      run_once: true
+
+    - name: Esperar que el VIP esté accesible (API)
+      ansible.builtin.wait_for:
+        host: "{{ k3s_server_ip }}"
+        port: 6443
+        timeout: 60
+      delegate_to: localhost
       run_once: true
 
     - name: Configurar nodos masters adicionales
@@ -101,7 +108,7 @@
           --server https://{{ k3s_server_ip }}:6443 \
           --token {{ k3s_token.stdout }} \
           --tls-san {{ k3s_server_ip }} \
-          --tls-san {{ k8s_api_vip }} \
+          --tls-san {{ ansible_host }} \
           --node-name {{ inventory_hostname }}
         Restart=always
         KillMode=process
@@ -113,16 +120,16 @@
         [Install]
         WantedBy=multi-user.target
         EOF
-      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
+      when: inventory_hostname in groups['masters'] and inventory_hostname != groups['masters'][0]
 
-    - name: Iniciar servicio en masters adicionales
+    - name: Iniciar masters adicionales
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s
         systemctl start k3s
-      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
+      when: inventory_hostname in groups['masters'] and inventory_hostname != groups['masters'][0]
 
-    - name: Configurar nodos workers y storage
+    - name: Configurar agentes en workers y storage
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s-agent.service
         [Unit]
@@ -132,7 +139,11 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s agent --server https://{{ k3s_server_ip }}:6443 --token {{ k3s_token.stdout }} --node-ip {{ ansible_host }}
+        ExecStart=/opt/bin/k3s agent \
+          --server https://{{ k3s_server_ip }}:6443 \
+          --token {{ k3s_token.stdout }} \
+          --node-ip {{ ansible_host }} \
+          --node-name {{ inventory_hostname }}
         Restart=always
         LimitNOFILE=1048576
         LimitNPROC=1048576
@@ -149,3 +160,8 @@
         systemctl enable k3s-agent
         systemctl start k3s-agent
       when: inventory_hostname in groups['workers'] + groups['storage']
+
+    - name: Verificar estado del clúster (solo en el primer master)
+      ansible.builtin.raw: |
+        /opt/bin/k3s kubectl get nodes -o wide
+      when: inventory_hostname == groups['masters'][0]
