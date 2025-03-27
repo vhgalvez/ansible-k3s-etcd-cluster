@@ -47,13 +47,17 @@ Ejemplo de `inventory.ini`:
 - Acceso a **Internet** para descargar los binarios de K3s en cada nodo.
 
 ## Uso
+
 1. Clona el repositorio:
+   
    ```bash
    git clone https://github.com/yourusername/ansible-k3s-etcd-cluster.git
    cd ansible-k3s-etcd-cluster
    ```
 2. Actualiza el Inventario: Edita `inventory.ini` con las direcciones IP y detalles de acceso para tus nodos.
+   
 3. Ejecuta el Playbook: Despliega K3s y configura el clúster con:
+   
    ```bash
    sudo ansible-playbook -i inventory.ini install_k3s.yaml
    ```
