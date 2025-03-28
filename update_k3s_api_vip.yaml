@@ -1,30 +1,32 @@
-- name: Reemplazar endpoint API por IP VIP
-  hosts: masters:workers
+- name: Reemplazar endpoint API por IP VIP en nodos master
+  hosts: masters
   become: true
   vars:
     api_vip: "https://10.17.5.10:6443"
+
   tasks:
-    - name: Hacer copia de seguridad de config.yaml si existe
+    - name: Verificar si existe /etc/rancher/k3s/config.yaml
+      ansible.builtin.stat:
+        path: /etc/rancher/k3s/config.yaml
+      register: k3s_config
+
+    - name: Hacer copia de seguridad de config.yaml
       ansible.builtin.copy:
         src: /etc/rancher/k3s/config.yaml
         dest: /etc/rancher/k3s/config.yaml.bak
         remote_src: true
-      ignore_errors: true
+      when: k3s_config.stat.exists
 
-    - name: Reemplazar IP del API server en config.yaml
+    - name: Reemplazar IP del API server por la IP VIP
       ansible.builtin.lineinfile:
         path: /etc/rancher/k3s/config.yaml
         regexp: '^server:.*'
         line: "server: {{ api_vip }}"
         backup: true
-      when: ansible_facts['os_family'] == 'Flatcar'
+      when: k3s_config.stat.exists
 
-    - name: Reiniciar k3s o k3s-agent
-      ansible.builtin.shell: |
-        if systemctl status k3s &>/dev/null; then
-          systemctl restart k3s
-        elif systemctl status k3s-agent &>/dev/null; then
-          systemctl restart k3s-agent
-        fi
-      args:
-        executable: /bin/bash
+    - name: Reiniciar servicio k3s
+      ansible.builtin.systemd:
+        name: k3s
+        state: restarted
+      when: k3s_config.stat.exists
