@@ -14,26 +14,34 @@
         mkdir -p /opt/bin
         mkdir -p /etc/rancher/k3s
         mkdir -p /var/lib/rancher/k3s/server
-      when: inventory_hostname in groups['masters'] + groups['workers']
+      when: inventory_hostname in groups['masters'] + groups['workers'] + groups['storage']
 
     - name: Descargar e instalar K3s en todos los nodos
       ansible.builtin.raw: |
         curl -Lo /opt/bin/k3s "{{ k3s_url }}" && chmod +x /opt/bin/k3s
       args:
         timeout: 600
-      when: inventory_hostname in groups['masters'] + groups['workers']
+      when: inventory_hostname in groups['masters'] + groups['workers'] + groups['storage']
 
     - name: Verificar que el binario de K3s no está en uso
       ansible.builtin.raw: |
         fuser -k /opt/bin/k3s || true
       when: inventory_hostname == k3s_server_ip
 
+    - name: Cargar módulos de red necesarios
+      ansible.builtin.modprobe:
+        name: "{{ item }}"
+      loop:
+        - br_netfilter
+        - overlay
+      when: inventory_hostname in groups['masters'] + groups['workers'] + groups['storage']
+
     - name: Crear enlaces simbólicos para herramientas de K3s en Flatcar
       ansible.builtin.raw: |
         ln -sf /opt/bin/k3s /opt/bin/kubectl
         ln -sf /opt/bin/k3s /opt/bin/crictl
         ln -sf /opt/bin/k3s /opt/bin/ctr
-      when: inventory_hostname in groups['masters'] + groups['workers']
+      when: inventory_hostname in groups['masters'] + groups['workers'] + groups['storage']
 
     - name: Configurar servicio K3s en el primer nodo maestro
       ansible.builtin.raw: |
@@ -161,4 +169,11 @@
         else
           echo "Archivo k3s.yaml no encontrado, omitiendo configuración en {{ inventory_hostname }}"
         fi
+      when: inventory_hostname in groups['masters'] + groups['workers']
+
+    - name: Asegurar que K3s está corriendo
+      ansible.builtin.systemd:
+        name: k3s
+        state: started
+        enabled: true
       when: inventory_hostname in groups['masters'] + groups['workers']
