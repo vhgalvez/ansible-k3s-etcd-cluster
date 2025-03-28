@@ -12,9 +12,9 @@
     - name: Asegurar que Keepalived está instalado
       raw: |
         if ! which keepalived; then
-          curl -LO https://github.com/acassen/keepalived/releases/download/v2.0.19/keepalived-2.0.19-linux-x86_64.tar.gz
-          tar -xvzf keepalived-2.0.19-linux-x86_64.tar.gz
-          cd keepalived-2.0.19-linux-x86_64
+          curl -LO https://www.keepalived.org/software/keepalived-2.0.19.tar.gz  # Actualiza la URL aquí si es necesario
+          tar -xvzf keepalived-2.0.19.tar.gz
+          cd keepalived-2.0.19
           sudo cp keepalived /usr/local/bin
         fi
 
