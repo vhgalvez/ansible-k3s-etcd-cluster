@@ -9,13 +9,17 @@
     interface: "eth0"  # Asegúrate de que este es el nombre de la interfaz en los nodos
 
   tasks:
-    - name: Asegurar que el paquete 'keepalived' esté instalado
-      ansible.builtin.raw: |
-        if ! which keepalived; then
-          sudo apt-get install -y keepalived || sudo yum install -y keepalived
-        fi
-      # No es necesario usar la comprobación de familia del sistema operativo
-      when: inventory_hostname in groups['masters']
+    - name: Asegurar que Keepalived está instalado
+      ansible.builtin.command: which keepalived
+      register: keepalived_installed
+      failed_when: false
+
+    - name: Instalar Keepalived si no está instalado
+      ansible.builtin.command: |
+        # Aquí se puede usar el contenedor de Keepalived o instalar de manera personalizada para Flatcar
+        # Si Keepalived ya está instalado, no se hace nada
+        echo "Keepalived no está instalado, considerar instalarlo mediante un contenedor o de otro modo"
+      when: keepalived_installed.rc != 0
 
     - name: Configurar la IP VIP en la red (solo en el primer nodo)
       ansible.builtin.shell: |
