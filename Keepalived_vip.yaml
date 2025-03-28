@@ -10,61 +10,49 @@
 
   tasks:
     - name: Asegurar que Keepalived está instalado
-      ansible.builtin.command: which keepalived
-      register: keepalived_installed
-      failed_when: false
-
-    - name: Instalar Keepalived si no está instalado
-      ansible.builtin.command: |
-        # Aquí se puede usar el contenedor de Keepalived o instalar de manera personalizada para Flatcar
-        # Si Keepalived ya está instalado, no se hace nada
-        echo "Keepalived no está instalado, considerar instalarlo mediante un contenedor o de otro modo"
-      when: keepalived_installed.rc != 0
+      raw: |
+        if ! which keepalived; then
+          # Para sistemas basados en RedHat
+          sudo yum install -y keepalived
+        fi
+        if ! which keepalived; then
+          # Para sistemas basados en Debian
+          sudo apt-get install -y keepalived
+        fi
 
     - name: Configurar la IP VIP en la red (solo en el primer nodo)
-      ansible.builtin.shell: |
+      raw: |
         ip addr add {{ vip }}/24 dev {{ interface }}
         ip link set dev {{ interface }} up
       when: inventory_hostname == 'master1.cefaslocalserver.com'
 
     - name: Verificar conectividad del VIP
-      ansible.builtin.command: ping -c 4 {{ vip }}
+      raw: |
+        ping -c 4 {{ vip }}
       register: ping_result
       failed_when: ping_result.rc != 0
       when: inventory_hostname == 'master1.cefaslocalserver.com'
 
     - name: Configurar Keepalived para gestionar el VIP
-      ansible.builtin.copy:
-        dest: /etc/keepalived/keepalived.conf
-        content: |
-          vrrp_instance VI_1 {
-              state MASTER
-              interface {{ interface }}
-              virtual_router_id 51
-              priority 101
-              advert_int 1
-              virtual_ipaddress {
-                  {{ vip }}
-              }
+      raw: |
+        echo 'vrrp_instance VI_1 {
+          state MASTER
+          interface {{ interface }}
+          virtual_router_id 51
+          priority 101
+          advert_int 1
+          virtual_ipaddress {
+              {{ vip }}
           }
-      notify:
-        - Restart Keepalived
-      when: inventory_hostname == 'master1.cefaslocalserver.com'
+        }' > /etc/keepalived/keepalived.conf
 
     - name: Iniciar y habilitar Keepalived
-      ansible.builtin.systemd:
-        name: keepalived
-        state: started
-        enabled: true
+      raw: |
+        systemctl start keepalived
+        systemctl enable keepalived
       when: inventory_hostname == 'master1.cefaslocalserver.com'
 
     - name: Configurar el archivo kubeconfig para apuntar al VIP
-      ansible.builtin.shell: |
+      raw: |
         sed -i 's/127.0.0.1/{{ vip }}/g' /etc/rancher/k3s/k3s.yaml
       when: inventory_hostname in groups['masters']
-
-  handlers:
-    - name: Restart Keepalived
-      ansible.builtin.systemd:
-        name: keepalived
-        state: restarted
