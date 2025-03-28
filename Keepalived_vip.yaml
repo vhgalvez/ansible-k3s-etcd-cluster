@@ -12,12 +12,10 @@
     - name: Asegurar que Keepalived está instalado
       raw: |
         if ! which keepalived; then
-          # Para sistemas basados en RedHat
-          sudo yum install -y keepalived
-        fi
-        if ! which keepalived; then
-          # Para sistemas basados en Debian
-          sudo apt-get install -y keepalived
+          curl -LO https://github.com/acassen/keepalived/releases/download/v2.0.19/keepalived-2.0.19-linux-x86_64.tar.gz
+          tar -xvzf keepalived-2.0.19-linux-x86_64.tar.gz
+          cd keepalived-2.0.19-linux-x86_64
+          sudo cp keepalived /usr/local/bin
         fi
 
     - name: Configurar la IP VIP en la red (solo en el primer nodo)
