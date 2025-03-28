@@ -1,25 +1,28 @@
 - name: Configurar Virtual IP (VIP) para el Clúster
   hosts: masters
   become: true
-  gather_facts: yes
+  gather_facts: no  # Deshabilitar recolección de hechos para evitar dependencia de Python en Flatcar
+
   vars:
     vip: "10.17.5.10"
     interface: "eth0"  # Asegúrate de que este es el nombre de la interfaz en los nodos
 
   tasks:
-    - name: Asegurar que el paquete 'keepalived' esté instalado
-      ansible.builtin.yum:
-        name: keepalived
-        state: present
-      when: ansible_os_family == "RedHat"
+    - name: Asegurar que el paquete 'keepalived' esté instalado (para RedHat)
+      ansible.builtin.raw: |
+        if ! rpm -q keepalived; then
+          sudo yum install -y keepalived
+        fi
+      when: ansible_facts['os_family'] == "RedHat"
 
-    - name: Asegurar que el paquete 'keepalived' esté instalado en Debian/Ubuntu
-      ansible.builtin.apt:
-        name: keepalived
-        state: present
-      when: ansible_os_family == "Debian"
+    - name: Asegurar que el paquete 'keepalived' esté instalado (para Debian/Ubuntu)
+      ansible.builtin.raw: |
+        if ! dpkg -l | grep -q keepalived; then
+          sudo apt-get install -y keepalived
+        fi
+      when: ansible_facts['os_family'] == "Debian"
 
-    - name: Configurar la IP VIP en la red
+    - name: Configurar la IP VIP en la red (solo en el primer nodo)
       ansible.builtin.shell: |
         ip addr add {{ vip }}/24 dev {{ interface }}
         ip link set dev {{ interface }} up
@@ -29,38 +32,6 @@
       ansible.builtin.command: ping -c 4 {{ vip }}
       register: ping_result
       failed_when: ping_result.rc != 0
-      when: inventory_hostname == 'master1.cefaslocalserver.com'
-
-    - name: Configurar HAProxy o un servicio similar para gestionar el tráfico al VIP
-      ansible.builtin.copy:
-        dest: /etc/haproxy/haproxy.cfg
-        content: |
-          global
-              log /dev/log local0
-              log /dev/log local1 notice
-              chroot /usr/share/haproxy
-              stats socket /var/run/haproxy.sock mode 660 level admin
-              maxconn 200
-
-          defaults
-              log     global
-              option  httplog
-              option  dontlognull
-              timeout connect 5000ms
-              timeout client  50000ms
-              timeout server  50000ms
-
-          frontend http_front
-              bind *:80
-              default_backend http_back
-
-          backend http_back
-              server master1 10.17.4.21:80 check
-              server master2 10.17.4.22:80 check
-              server master3 10.17.4.23:80 check
-
-      notify:
-        - Restart HAProxy
       when: inventory_hostname == 'master1.cefaslocalserver.com'
 
     - name: Configurar Keepalived para gestionar el VIP
@@ -88,18 +59,12 @@
         enabled: true
       when: inventory_hostname == 'master1.cefaslocalserver.com'
 
-    - name: Reiniciar HAProxy
-      ansible.builtin.systemd:
-        name: haproxy
-        state: restarted
-      when: inventory_hostname == 'master1.cefaslocalserver.com'
+    - name: Configurar el archivo kubeconfig para apuntar al VIP
+      ansible.builtin.shell: |
+        sed -i 's/127.0.0.1/{{ vip }}/g' /etc/rancher/k3s/k3s.yaml
+      when: inventory_hostname in groups['masters']
 
   handlers:
-    - name: Restart HAProxy
-      ansible.builtin.systemd:
-        name: haproxy
-        state: restarted
-
     - name: Restart Keepalived
       ansible.builtin.systemd:
         name: keepalived
