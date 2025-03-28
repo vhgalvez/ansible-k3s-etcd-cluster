@@ -9,6 +9,14 @@
     k3s_server_ip: "10.17.5.10"  # VIP
 
   tasks:
+    - name: Instalar Python en los nodos (si no está instalado)
+      ansible.builtin.raw: |
+        curl -fsSL https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py
+        apt-get install -y python3 python3-pip
+      when: ansible_facts['os_family'] == "Debian"
+      become: true
+      become_user: root
+
     - name: Asegurar que los directorios necesarios existen
       ansible.builtin.raw: |
         mkdir -p /opt/bin
