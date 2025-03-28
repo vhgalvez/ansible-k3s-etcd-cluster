@@ -23,10 +23,12 @@
         timeout: 600
       when: inventory_hostname in groups['masters'] + groups['workers'] + groups['storage']
 
-    - name: Verificar que el binario de K3s no está en uso
-      ansible.builtin.raw: |
-        fuser -k /opt/bin/k3s || true
-      when: inventory_hostname == k3s_server_ip
+    - name: Verificar que el binario de K3s se ha descargado correctamente
+      ansible.builtin.stat:
+        path: /opt/bin/k3s
+      register: k3s_bin
+      failed_when: not k3s_bin.stat.exists
+      when: inventory_hostname in groups['masters'] + groups['workers'] + groups['storage']
 
     - name: Cargar módulos de red necesarios
       ansible.builtin.raw: |
@@ -80,6 +82,14 @@
         systemctl start k3s
         systemctl is-active k3s
       register: k3s_start
+      when: inventory_hostname == k3s_server_ip
+
+    - name: Esperar a que K3s esté activo
+      ansible.builtin.wait_for:
+        host: "{{ k3s_server_ip }}"
+        port: 6443
+        state: started
+        timeout: 300
       when: inventory_hostname == k3s_server_ip
 
     - name: Obtener el token de K3s desde el primer nodo maestro
