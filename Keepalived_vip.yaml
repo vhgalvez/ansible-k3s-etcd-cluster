@@ -1,3 +1,4 @@
+---
 - name: Configurar Virtual IP (VIP) para el Clúster
   hosts: masters
   become: true
@@ -8,19 +9,13 @@
     interface: "eth0"  # Asegúrate de que este es el nombre de la interfaz en los nodos
 
   tasks:
-    - name: Asegurar que el paquete 'keepalived' esté instalado (para RedHat)
+    - name: Asegurar que el paquete 'keepalived' esté instalado
       ansible.builtin.raw: |
-        if ! rpm -q keepalived; then
-          sudo yum install -y keepalived
+        if ! which keepalived; then
+          sudo apt-get install -y keepalived || sudo yum install -y keepalived
         fi
-      when: ansible_facts['os_family'] == "RedHat"
-
-    - name: Asegurar que el paquete 'keepalived' esté instalado (para Debian/Ubuntu)
-      ansible.builtin.raw: |
-        if ! dpkg -l | grep -q keepalived; then
-          sudo apt-get install -y keepalived
-        fi
-      when: ansible_facts['os_family'] == "Debian"
+      # No es necesario usar la comprobación de familia del sistema operativo
+      when: inventory_hostname in groups['masters']
 
     - name: Configurar la IP VIP en la red (solo en el primer nodo)
       ansible.builtin.shell: |
