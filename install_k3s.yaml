@@ -1,12 +1,12 @@
 - name: Instalar y Configurar K3s con etcd en el Clúster
   hosts: all
   become: true
-  gather_facts: no # Disable gathering facts to avoid Python dependency on Flatcar
+  gather_facts: no  # Disable gathering facts to avoid Python dependency on Flatcar
 
   vars:
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
     k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
-    k3s_server_ip: "10.17.5.10" # VIP
+    k3s_server_ip: "10.17.5.10"  # VIP
 
   tasks:
     - name: Asegurar que los directorios necesarios existen
@@ -29,8 +29,8 @@
       when: inventory_hostname == k3s_server_ip
 
     - name: Cargar módulos de red necesarios
-      ansible.builtin.modprobe:
-        name: "{{ item }}"
+      ansible.builtin.raw: |
+        modprobe {{ item }}
       loop:
         - br_netfilter
         - overlay
