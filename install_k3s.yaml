@@ -7,7 +7,7 @@
   vars:
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
     k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
-    vip_ip: "10.17.15.10"  # Usamos la IP VIP configurada
+    vip_ip: "10.17.5.10"  # Usamos la IP VIP configurada
 
   tasks:
     - name: Asegurar directorios necesarios
