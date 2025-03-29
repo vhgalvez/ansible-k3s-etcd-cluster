@@ -1,4 +1,3 @@
----
 - name: Instalar y Configurar K3s con etcd en el Clúster
   hosts: all
   become: true
@@ -7,7 +6,7 @@
   vars:
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
     k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
-    vip_ip: "10.17.15.10"  # Usamos la IP VIP configurada
+    k3s_server_ip: "10.17.4.21"
 
   tasks:
     - name: Asegurar directorios necesarios
@@ -24,7 +23,7 @@
 
     - name: Verificar que el binario no está en uso
       ansible.builtin.raw: fuser -k /opt/bin/k3s || true
-      when: inventory_hostname == vip_ip
+      when: inventory_hostname == k3s_server_ip
 
     - name: Crear enlaces simbólicos
       ansible.builtin.raw: |
@@ -47,7 +46,7 @@
         ExecStartPre=-/sbin/modprobe overlay
         ExecStart=/opt/bin/k3s server \
           --cluster-init \
-          --tls-san {{ vip_ip }} \
+          --tls-san {{ k3s_server_ip }} \
           --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
           --write-kubeconfig-mode 644
         Restart=always
@@ -60,7 +59,7 @@
         [Install]
         WantedBy=multi-user.target
         EOF
-      when: inventory_hostname == vip_ip
+      when: inventory_hostname == k3s_server_ip
 
     - name: Iniciar primer nodo master
       ansible.builtin.raw: |
@@ -69,17 +68,17 @@
         systemctl start k3s
         systemctl is-active k3s
       register: k3s_start
-      when: inventory_hostname == vip_ip
+      when: inventory_hostname == k3s_server_ip
 
     - name: Mostrar logs de k3s
       ansible.builtin.raw: journalctl -u k3s -n 100 --no-pager
       register: k3s_logs
-      when: inventory_hostname == vip_ip
+      when: inventory_hostname == k3s_server_ip
 
     - name: Debug logs
       ansible.builtin.debug:
         var: k3s_logs.stdout_lines
-      when: inventory_hostname == vip_ip
+      when: inventory_hostname == k3s_server_ip
 
     - name: Esperar a que K3s esté activo
       ansible.builtin.raw: |
@@ -90,12 +89,12 @@
           timeout=$((timeout-5))
         done
         [ $timeout -le 0 ] && echo "Timeout" && exit 1 || true
-      when: inventory_hostname == vip_ip
+      when: inventory_hostname == k3s_server_ip
 
     - name: Obtener token del master
       ansible.builtin.raw: cat "{{ k3s_token_path }}"
       register: k3s_token
-      delegate_to: "{{ vip_ip }}"
+      delegate_to: "{{ k3s_server_ip }}"
       run_once: true
       failed_when: k3s_token.rc != 0
 
@@ -112,9 +111,9 @@
         ExecStartPre=-/sbin/modprobe br_netfilter
         ExecStartPre=-/sbin/modprobe overlay
         ExecStart=/opt/bin/k3s server \
-          --server https://{{ vip_ip }}:6443 \
+          --server https://{{ k3s_server_ip }}:6443 \
           --token {{ k3s_token.stdout }} \
-          --tls-san {{ vip_ip }} \
+          --tls-san {{ k3s_server_ip }} \
           --node-name {{ inventory_hostname }}
         Restart=always
         KillMode=process
@@ -126,7 +125,7 @@
         [Install]
         WantedBy=multi-user.target
         EOF
-      when: inventory_hostname in groups['masters'] and inventory_hostname != vip_ip
+      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
     - name: Iniciar K3s en nodos masters secundarios
       ansible.builtin.raw: |
@@ -135,7 +134,7 @@
         systemctl start k3s
         systemctl is-active k3s
       register: k3s_join_start
-      when: inventory_hostname in groups['masters'] and inventory_hostname != vip_ip
+      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
     - name: Esperar que K3s esté activo (masters secundarios)
       ansible.builtin.raw: |
@@ -146,7 +145,7 @@
           timeout=$((timeout-5))
         done
         [ $timeout -le 0 ] && echo "Timeout" && exit 1 || true
-      when: inventory_hostname in groups['masters'] and inventory_hostname != vip_ip
+      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_server_ip
 
     - name: Configurar nodos longhorn/workers
       ansible.builtin.raw: |
@@ -158,7 +157,7 @@
         [Service]
         Type=exec
         ExecStart=/opt/bin/k3s agent \
-          --server https://{{ vip_ip }}:6443 \
+          --server https://{{ k3s_server_ip }}:6443 \
           --token {{ k3s_token.stdout }} \
           --node-ip {{ ansible_host }}
         Restart=always
@@ -196,7 +195,7 @@
         if [ -f /etc/rancher/k3s/k3s.yaml ]; then
           mkdir -p /home/core/.kube && \
           cp /etc/rancher/k3s/k3s.yaml /home/core/.kube/config && \
-          sed -i 's/127.0.0.1/{{ vip_ip }}/g' /home/core/.kube/config && \
+          sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' /home/core/.kube/config && \
           chown core:core /home/core/.kube/config && \
           chmod 644 /home/core/.kube/config
         fi
@@ -212,14 +211,14 @@
     - name: Obtener kubeconfig del primer master
       ansible.builtin.raw: cat /etc/rancher/k3s/k3s.yaml
       register: k3s_kubeconfig
-      delegate_to: "{{ vip_ip }}"
+      delegate_to: "{{ k3s_server_ip }}"
       run_once: true
       failed_when: k3s_kubeconfig.rc != 0
 
     - name: Copiar kubeconfig a nodos longhorn
       ansible.builtin.raw: |
         echo "{{ k3s_kubeconfig.stdout }}" > /home/core/.kube/config && \
-        sed -i 's/127.0.0.1/{{ vip_ip }}/g' /home/core/.kube/config && \
+        sed -i 's/127.0.0.1/{{ k3s_server_ip }}/g' /home/core/.kube/config && \
         chown core:core /home/core/.kube/config && \
         chmod 644 /home/core/.kube/config
       when: inventory_hostname in groups['longhorn_nodes']
