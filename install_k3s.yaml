@@ -1,8 +1,8 @@
 ---
-- name: Instalar y Configurar K3s con etcd en el Clúster
+- name: Instalar y Configurar K3s con alta disponibilidad (etcd) en el Clúster
   hosts: all
   become: true
-  gather_facts: no
+  gather_facts: yes
 
   vars:
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
@@ -10,11 +10,13 @@
     vip_ip: "10.17.5.10"  # Usamos la IP VIP configurada
 
   tasks:
+    # Asegurar que los directorios necesarios están creados
     - name: Asegurar directorios necesarios
       ansible.builtin.raw: |
         mkdir -p /opt/bin /etc/rancher/k3s /var/lib/rancher/k3s/server
       when: inventory_hostname in groups['masters'] + groups['longhorn_nodes']
 
+    # Descargar e instalar K3s
     - name: Descargar e instalar K3s
       ansible.builtin.raw: |
         curl -Lo /opt/bin/k3s "{{ k3s_url }}" && chmod +x /opt/bin/k3s
@@ -22,10 +24,12 @@
         timeout: 600
       when: inventory_hostname in groups['masters'] + groups['longhorn_nodes']
 
+    # Verificar que el binario no está en uso
     - name: Verificar que el binario no está en uso
       ansible.builtin.raw: fuser -k /opt/bin/k3s || true
       when: inventory_hostname == vip_ip
 
+    # Crear enlaces simbólicos para kubectl y otros binarios
     - name: Crear enlaces simbólicos
       ansible.builtin.raw: |
         ln -sf /opt/bin/k3s /opt/bin/kubectl
@@ -33,6 +37,7 @@
         ln -sf /opt/bin/k3s /opt/bin/ctr
       when: inventory_hostname in groups['masters'] + groups['longhorn_nodes']
 
+    # Configurar el primer nodo master
     - name: Configurar primer nodo master
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s.service
@@ -62,6 +67,7 @@
         EOF
       when: inventory_hostname == vip_ip
 
+    # Iniciar el primer nodo master
     - name: Iniciar primer nodo master
       ansible.builtin.raw: |
         systemctl daemon-reload
@@ -71,6 +77,7 @@
       register: k3s_start
       when: inventory_hostname == vip_ip
 
+    # Mostrar logs de K3s para depuración
     - name: Mostrar logs de k3s
       ansible.builtin.raw: journalctl -u k3s -n 100 --no-pager
       register: k3s_logs
@@ -81,6 +88,7 @@
         var: k3s_logs.stdout_lines
       when: inventory_hostname == vip_ip
 
+    # Esperar a que K3s esté activo
     - name: Esperar a que K3s esté activo
       ansible.builtin.raw: |
         timeout=120
@@ -92,6 +100,7 @@
         [ $timeout -le 0 ] && echo "Timeout" && exit 1 || true
       when: inventory_hostname == vip_ip
 
+    # Obtener el token del primer nodo master
     - name: Obtener token del master
       ansible.builtin.raw: cat "{{ k3s_token_path }}"
       register: k3s_token
@@ -99,6 +108,7 @@
       run_once: true
       failed_when: k3s_token.rc != 0
 
+    # Configurar nodos masters secundarios
     - name: Configurar nodos masters secundarios
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s.service
@@ -128,6 +138,7 @@
         EOF
       when: inventory_hostname in groups['masters'] and inventory_hostname != vip_ip
 
+    # Iniciar K3s en nodos masters secundarios
     - name: Iniciar K3s en nodos masters secundarios
       ansible.builtin.raw: |
         systemctl daemon-reload
@@ -137,6 +148,7 @@
       register: k3s_join_start
       when: inventory_hostname in groups['masters'] and inventory_hostname != vip_ip
 
+    # Esperar que K3s esté activo en los nodos secundarios
     - name: Esperar que K3s esté activo (masters secundarios)
       ansible.builtin.raw: |
         timeout=120
@@ -148,6 +160,7 @@
         [ $timeout -le 0 ] && echo "Timeout" && exit 1 || true
       when: inventory_hostname in groups['masters'] and inventory_hostname != vip_ip
 
+    # Configurar nodos longhorn/workers
     - name: Configurar nodos longhorn/workers
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s-agent.service
@@ -171,7 +184,8 @@
         EOF
       when: inventory_hostname in groups['longhorn_nodes']
 
-    - name: Iniciar K3s-agent
+    # Iniciar K3s-agent en los nodos longhorn/workers
+    - name: Iniciar K3s-agent en nodos longhorn/workers
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s-agent
@@ -180,6 +194,7 @@
       register: k3s_agent_start
       when: inventory_hostname in groups['longhorn_nodes']
 
+    # Esperar que k3s-agent esté activo
     - name: Esperar que k3s-agent esté activo
       ansible.builtin.raw: |
         timeout=120
@@ -191,6 +206,7 @@
         [ $timeout -le 0 ] && echo "Timeout" && exit 1 || true
       when: inventory_hostname in groups['longhorn_nodes']
 
+    # Configurar kubeconfig en todos los nodos relevantes
     - name: Configurar kubeconfig en todos los nodos relevantes
       ansible.builtin.raw: |
         if [ -f /etc/rancher/k3s/k3s.yaml ]; then
@@ -202,6 +218,7 @@
         fi
       when: inventory_hostname in groups['masters'] or inventory_hostname in groups['longhorn_nodes']
 
+    # Crear carpeta .kube si no existe
     - name: Crear carpeta .kube si no existe
       ansible.builtin.raw: |
         mkdir -p /home/core/.kube
@@ -209,6 +226,7 @@
         chmod 755 /home/core/.kube
       when: inventory_hostname in groups['longhorn_nodes']
 
+    # Obtener kubeconfig del primer master
     - name: Obtener kubeconfig del primer master
       ansible.builtin.raw: cat /etc/rancher/k3s/k3s.yaml
       register: k3s_kubeconfig
@@ -216,6 +234,7 @@
       run_once: true
       failed_when: k3s_kubeconfig.rc != 0
 
+    # Copiar kubeconfig a nodos longhorn
     - name: Copiar kubeconfig a nodos longhorn
       ansible.builtin.raw: |
         echo "{{ k3s_kubeconfig.stdout }}" > /home/core/.kube/config && \
@@ -224,6 +243,7 @@
         chmod 644 /home/core/.kube/config
       when: inventory_hostname in groups['longhorn_nodes']
 
+    # (Opcional) Taint para storage1 como no schedulable
     - name: (Opcional) Taint para storage1 como no schedulable
       ansible.builtin.raw: |
         /opt/bin/kubectl taint nodes {{ inventory_hostname }} node-role.kubernetes.io/storage=true:NoSchedule --overwrite || true
