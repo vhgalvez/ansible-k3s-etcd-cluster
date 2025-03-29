@@ -100,6 +100,18 @@
         [ $timeout -le 0 ] && echo "Timeout" && exit 1 || true
       when: inventory_hostname == vip_ip
 
+    # Esperar que el token del master esté disponible
+    - name: Esperar que el token del master esté disponible
+      ansible.builtin.raw: |
+        timeout=120
+        while [ ! -f "{{ k3s_token_path }}" ] && [ $timeout -gt 0 ]; do
+          echo "Esperando el archivo node-token... ($timeout s restantes)"
+          sleep 5
+          timeout=$((timeout-5))
+        done
+        [ $timeout -le 0 ] && echo "Timeout al esperar el token" && exit 1 || true
+      when: inventory_hostname == vip_ip
+
     # Obtener el token del primer nodo master
     - name: Obtener token del master
       ansible.builtin.raw: cat "{{ k3s_token_path }}"
