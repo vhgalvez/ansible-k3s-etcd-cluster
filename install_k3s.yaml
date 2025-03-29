@@ -2,7 +2,7 @@
 - name: Instalar y Configurar K3s con alta disponibilidad (etcd) en el Clúster
   hosts: all
   become: true
-  gather_facts: yes
+  gather_facts: no
 
   vars:
     k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
