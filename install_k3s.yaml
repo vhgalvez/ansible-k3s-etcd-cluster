@@ -10,16 +10,10 @@
     k3s_master_ip: "10.17.4.21"  # Primer nodo master real
 
   tasks:
-    # Asegurar que los directorios necesarios están creados
+    # Asegurar que los directorios necesarios están creados usando raw
     - name: Asegurar directorios necesarios
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: directory
-        mode: '0755'
-      loop:
-        - /opt/bin
-        - /etc/rancher/k3s
-        - /var/lib/rancher/k3s/server
+      ansible.builtin.raw: |
+        mkdir -p /opt/bin /etc/rancher/k3s /var/lib/rancher/k3s/server
       when: inventory_hostname in groups['masters'] + groups['longhorn_nodes']
 
     # Descargar e instalar K3s
@@ -235,34 +229,3 @@
           chmod 644 /home/core/.kube/config
         fi
       when: inventory_hostname in groups['masters'] or inventory_hostname in groups['longhorn_nodes']
-
-    # Crear carpeta .kube si no existe
-    - name: Crear carpeta .kube si no existe
-      ansible.builtin.raw: |
-        mkdir -p /home/core/.kube
-        chown core:core /home/core/.kube
-        chmod 755 /home/core/.kube
-      when: inventory_hostname in groups['longhorn_nodes']
-
-    # Obtener kubeconfig del primer master
-    - name: Obtener kubeconfig del primer master
-      ansible.builtin.raw: cat /etc/rancher/k3s/k3s.yaml
-      register: k3s_kubeconfig
-      delegate_to: "{{ k3s_master_ip }}"
-      run_once: true
-      failed_when: k3s_kubeconfig.rc != 0
-
-    # Copiar kubeconfig a nodos longhorn
-    - name: Copiar kubeconfig a nodos longhorn
-      ansible.builtin.raw: |
-        echo "{{ k3s_kubeconfig.stdout }}" > /home/core/.kube/config && \
-        sed -i 's/127.0.0.1/{{ vip_ip }}/g' /home/core/.kube/config && \
-        chown core:core /home/core/.kube/config && \
-        chmod 644 /home/core/.kube/config
-      when: inventory_hostname in groups['longhorn_nodes']
-
-    # (Opcional) Taint para storage1 como no schedulable
-    - name: (Opcional) Taint para storage1 como no schedulable
-      ansible.builtin.raw: |
-        /opt/bin/kubectl taint nodes {{ inventory_hostname }} node-role.kubernetes.io/storage=true:NoSchedule --overwrite || true
-      when: inventory_hostname == '10.17.4.27'
