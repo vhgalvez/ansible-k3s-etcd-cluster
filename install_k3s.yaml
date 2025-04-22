@@ -137,6 +137,7 @@
         ExecStart=/opt/bin/k3s server \
           --server https://{{ vip_ip }}:6443 \
           --token {{ k3s_token.stdout }} \
+          --disable traefik \
           --tls-san {{ vip_ip }} \
           --node-name {{ inventory_hostname }}
         Restart=always
@@ -185,7 +186,6 @@
         Type=exec
         ExecStart=/opt/bin/k3s agent \
           --server https://{{ vip_ip }}:6443 \
-          --disable traefik \
           --token {{ k3s_token.stdout }} \
           --node-ip {{ ansible_host }}
         Restart=always
