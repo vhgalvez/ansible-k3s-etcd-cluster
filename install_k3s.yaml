@@ -52,6 +52,7 @@
         ExecStartPre=-/sbin/modprobe overlay
         ExecStart=/opt/bin/k3s server \
           --cluster-init \
+          --disable traefik \
           --tls-san {{ vip_ip }} \
           --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
           --write-kubeconfig-mode 644
@@ -184,6 +185,7 @@
         Type=exec
         ExecStart=/opt/bin/k3s agent \
           --server https://{{ vip_ip }}:6443 \
+          --disable traefik \
           --token {{ k3s_token.stdout }} \
           --node-ip {{ ansible_host }}
         Restart=always
