@@ -68,16 +68,6 @@
       register: k3s_start
       when: inventory_hostname == k3s_master_ip
 
-    - name: Mostrar logs de k3s
-      ansible.builtin.raw: journalctl -u k3s -n 100 --no-pager
-      register: k3s_logs
-      when: inventory_hostname == k3s_master_ip
-
-    - name: Debug logs
-      ansible.builtin.debug:
-        var: k3s_logs.stdout_lines
-      when: inventory_hostname == k3s_master_ip
-
     - name: Esperar a que K3s esté activo
       ansible.builtin.raw: |
         timeout=120
@@ -100,42 +90,43 @@
         [ $timeout -le 0 ] && echo "Timeout al esperar el token" && exit 1 || true
       when: inventory_hostname == k3s_master_ip
 
-    - name: Obtener token del master
-      ansible.builtin.shell: "cat {{ k3s_token_path }} | tr -d '\n'"
+    - name: Obtener token del master (compatibilidad Flatcar)
+      ansible.builtin.shell: cat "{{ k3s_token_path }}"
       register: k3s_token
       delegate_to: "{{ k3s_master_ip }}"
       run_once: true
       changed_when: false
+      failed_when: k3s_token.rc != 0
 
     - name: Configurar nodos masters secundarios
-      ansible.builtin.copy:
-        dest: /etc/systemd/system/k3s.service
-        content: |
-          [Unit]
-          Description=Lightweight Kubernetes
-          Wants=network-online.target
-          After=network-online.target
+      ansible.builtin.raw: |
+        cat <<EOF > /etc/systemd/system/k3s.service
+        [Unit]
+        Description=Lightweight Kubernetes
+        Wants=network-online.target
+        After=network-online.target
 
-          [Service]
-          Type=notify
-          ExecStartPre=-/sbin/modprobe br_netfilter
-          ExecStartPre=-/sbin/modprobe overlay
-          ExecStart=/opt/bin/k3s server --server https://{{ vip_ip }}:6443 --token {{ k3s_token.stdout }} --tls-san {{ vip_ip }} --node-name {{ inventory_hostname }}
-          Restart=always
-          KillMode=process
-          Delegate=yes
-          LimitNOFILE=1048576
-          LimitNPROC=infinity
-          LimitCORE=infinity
+        [Service]
+        Type=notify
+        ExecStartPre=-/sbin/modprobe br_netfilter
+        ExecStartPre=-/sbin/modprobe overlay
+        ExecStart=/opt/bin/k3s server --server https://{{ vip_ip }}:6443 --token {{ k3s_token.stdout }} --tls-san {{ vip_ip }} --node-name {{ inventory_hostname }}
+        Restart=always
+        KillMode=process
+        Delegate=yes
+        LimitNOFILE=1048576
+        LimitNPROC=infinity
+        LimitCORE=infinity
 
-          [Install]
-          WantedBy=multi-user.target
+        [Install]
+        WantedBy=multi-user.target
+        EOF
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_master_ip
 
-    - name: Reiniciar k3s en masters secundarios
-      ansible.builtin.shell: |
-        systemctl daemon-reexec
+    - name: Iniciar K3s en todos los masters (gracias a ip_nonlocal_bind)
+      ansible.builtin.raw: |
         systemctl daemon-reload
+        systemctl enable k3s
         systemctl restart k3s
         systemctl is-active k3s
       register: k3s_join_start
@@ -153,23 +144,23 @@
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_master_ip
 
     - name: Configurar nodos longhorn/workers
-      ansible.builtin.copy:
-        dest: /etc/systemd/system/k3s-agent.service
-        content: |
-          [Unit]
-          Description=Lightweight Kubernetes Node
-          After=network-online.target
+      ansible.builtin.raw: |
+        cat <<EOF > /etc/systemd/system/k3s-agent.service
+        [Unit]
+        Description=Lightweight Kubernetes Node
+        After=network-online.target
 
-          [Service]
-          Type=exec
-          ExecStart=/opt/bin/k3s agent --server https://{{ vip_ip }}:6443 --token {{ k3s_token.stdout }} --node-ip {{ ansible_host }}
-          Restart=always
-          LimitNOFILE=1048576
-          LimitNPROC=1048576
-          LimitCORE=infinity
+        [Service]
+        Type=exec
+        ExecStart=/opt/bin/k3s agent --server https://{{ vip_ip }}:6443 --token {{ k3s_token.stdout }} --node-ip {{ ansible_host }}
+        Restart=always
+        LimitNOFILE=1048576
+        LimitNPROC=1048576
+        LimitCORE=infinity
 
-          [Install]
-          WantedBy=multi-user.target
+        [Install]
+        WantedBy=multi-user.target
+        EOF
       when: inventory_hostname in groups['longhorn_nodes']
 
     - name: Iniciar K3s-agent en nodos longhorn/workers
