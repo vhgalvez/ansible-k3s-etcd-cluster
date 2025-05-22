@@ -64,7 +64,6 @@
         systemctl daemon-reload
         systemctl enable k3s
         systemctl start k3s
-        systemctl is-active k3s
       register: k3s_start
       when: inventory_hostname == k3s_master_ip
 
@@ -79,7 +78,7 @@
         [ $timeout -le 0 ] && echo "Timeout" && exit 1 || true
       when: inventory_hostname == k3s_master_ip
 
-    - name: Esperar que el token del master esté disponible (Flatcar compatible)
+    - name: Esperar que el token del master esté disponible
       ansible.builtin.raw: |
         timeout=120
         while [ ! -f "{{ k3s_token_path }}" ] && [ $timeout -gt 0 ]; do
@@ -91,11 +90,12 @@
       delegate_to: "{{ k3s_master_ip }}"
       run_once: true
 
-    - name: Obtener token del master (Flatcar compatible)
-      ansible.builtin.raw: cat "{{ k3s_token_path }}"
+    - name: Obtener token del master (compatibilidad Flatcar)
+      ansible.builtin.shell: cat "{{ k3s_token_path }}"
       register: k3s_token
       delegate_to: "{{ k3s_master_ip }}"
       run_once: true
+      changed_when: false
       failed_when: k3s_token.rc != 0
 
     - name: Configurar nodos masters secundarios
@@ -123,12 +123,11 @@
         EOF
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_master_ip
 
-    - name: Iniciar K3s en todos los masters
+    - name: Iniciar K3s en todos los masters (gracias a ip_nonlocal_bind)
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s
-        systemctl restart k3s
-        systemctl is-active k3s
+        systemctl start k3s
       register: k3s_join_start
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_master_ip
 
@@ -140,7 +139,7 @@
           sleep 5
           timeout=$((timeout-5))
         done
-        [ $timeout -le 0 ] && echo "Timeout" && exit 1 || true
+        systemctl is-active k3s || (journalctl -xeu k3s --no-pager -n 100 && exit 1)
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_master_ip
 
     - name: Configurar nodos longhorn/workers
@@ -168,7 +167,6 @@
         systemctl daemon-reload
         systemctl enable k3s-agent
         systemctl start k3s-agent
-        systemctl is-active k3s-agent
       register: k3s_agent_start
       when: inventory_hostname in groups['longhorn_nodes']
 
@@ -176,11 +174,11 @@
       ansible.builtin.raw: |
         timeout=120
         while ! systemctl is-active k3s-agent >/dev/null 2>&1 && [ $timeout -gt 0 ]; do
-          echo "Esperando a que K3s-agent esté activo... ($timeout s restantes)"
+          echo "Esperando K3s-agent (estado actual: $(systemctl show -p SubState --value k3s-agent))"
           sleep 5
           timeout=$((timeout-5))
         done
-        [ $timeout -le 0 ] && echo "Timeout" && exit 1 || true
+        systemctl is-active k3s-agent || (journalctl -xeu k3s-agent --no-pager -n 100 && exit 1)
       when: inventory_hostname in groups['longhorn_nodes']
 
     - name: Configurar kubeconfig en todos los nodos relevantes
