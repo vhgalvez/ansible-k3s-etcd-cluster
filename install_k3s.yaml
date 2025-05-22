@@ -79,7 +79,7 @@
         [ $timeout -le 0 ] && echo "Timeout" && exit 1 || true
       when: inventory_hostname == k3s_master_ip
 
-    - name: Esperar que el token del master esté disponible
+    - name: Esperar que el token del master esté disponible (Flatcar compatible)
       ansible.builtin.raw: |
         timeout=120
         while [ ! -f "{{ k3s_token_path }}" ] && [ $timeout -gt 0 ]; do
@@ -88,14 +88,14 @@
           timeout=$((timeout-5))
         done
         [ $timeout -le 0 ] && echo "Timeout al esperar el token" && exit 1 || true
-      when: inventory_hostname == k3s_master_ip
+      delegate_to: "{{ k3s_master_ip }}"
+      run_once: true
 
-    - name: Obtener token del master (compatibilidad Flatcar)
-      ansible.builtin.shell: cat "{{ k3s_token_path }}"
+    - name: Obtener token del master (Flatcar compatible)
+      ansible.builtin.raw: cat "{{ k3s_token_path }}"
       register: k3s_token
       delegate_to: "{{ k3s_master_ip }}"
       run_once: true
-      changed_when: false
       failed_when: k3s_token.rc != 0
 
     - name: Configurar nodos masters secundarios
@@ -123,7 +123,7 @@
         EOF
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_master_ip
 
-    - name: Iniciar K3s en todos los masters (gracias a ip_nonlocal_bind)
+    - name: Iniciar K3s en todos los masters
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s
