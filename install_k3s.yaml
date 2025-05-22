@@ -23,7 +23,7 @@
         timeout: 600
       when: inventory_hostname in groups['masters'] + groups['longhorn_nodes']
 
-    - name: Verificar que el binario no está en uso
+    - name: Eliminar binario en uso (si aplica)
       ansible.builtin.raw: fuser -k /opt/bin/k3s || true
       when: inventory_hostname == k3s_master_ip
 
@@ -46,7 +46,13 @@
         Type=notify
         ExecStartPre=-/sbin/modprobe br_netfilter
         ExecStartPre=-/sbin/modprobe overlay
-        ExecStart=/opt/bin/k3s server --cluster-init --tls-san {{ vip_ip }} --node-ip {{ ansible_host }} --advertise-address {{ ansible_host }} --write-kubeconfig /etc/rancher/k3s/k3s.yaml --write-kubeconfig-mode 644
+        ExecStart=/opt/bin/k3s server \
+          --cluster-init \
+          --tls-san {{ vip_ip }} \
+          --node-ip {{ ansible_host }} \
+          --advertise-address {{ ansible_host }} \
+          --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
+          --write-kubeconfig-mode 644
         Restart=always
         KillMode=process
         Delegate=yes
@@ -64,7 +70,6 @@
         systemctl daemon-reload
         systemctl enable k3s
         systemctl start k3s
-      register: k3s_start_result
       when: inventory_hostname == k3s_master_ip
 
     - name: Esperar a que K3s esté activo en el primer master
@@ -120,7 +125,12 @@
         Type=notify
         ExecStartPre=-/sbin/modprobe br_netfilter
         ExecStartPre=-/sbin/modprobe overlay
-        ExecStart=/opt/bin/k3s server --server https://{{ vip_ip }}:6443 --token {{ k3s_token_output.stdout | trim }} --tls-san {{ vip_ip }} --node-name {{ inventory_hostname }} --node-ip {{ ansible_host }}
+        ExecStart=/opt/bin/k3s server \
+          --server https://{{ vip_ip }}:6443 \
+          --token {{ k3s_token_output.stdout | trim }} \
+          --tls-san {{ vip_ip }} \
+          --node-name {{ inventory_hostname }} \
+          --node-ip {{ ansible_host }}
         Restart=always
         KillMode=process
         Delegate=yes
@@ -138,7 +148,6 @@
         systemctl daemon-reload
         systemctl enable k3s
         systemctl start k3s
-      register: k3s_join_start_result
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_master_ip
 
     - name: Esperar que K3s esté activo (masters secundarios)
@@ -161,7 +170,10 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s agent --server https://{{ vip_ip }}:6443 --token {{ k3s_token_output.stdout | trim }} --node-ip {{ ansible_host }}
+        ExecStart=/opt/bin/k3s agent \
+          --server https://{{ vip_ip }}:6443 \
+          --token {{ k3s_token_output.stdout | trim }} \
+          --node-ip {{ ansible_host }}
         Restart=always
         LimitNOFILE=1048576
         LimitNPROC=1048576
@@ -177,7 +189,6 @@
         systemctl daemon-reload
         systemctl enable k3s-agent
         systemctl start k3s-agent
-      register: k3s_agent_start_result
       when: inventory_hostname in groups['longhorn_nodes']
 
     - name: Esperar que k3s-agent esté activo
