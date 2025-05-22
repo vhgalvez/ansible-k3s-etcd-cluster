@@ -74,26 +74,25 @@
       register: k3s_start
       when: inventory_hostname == k3s_master_ip
 
+    - name: Mostrar logs de k3s
+      ansible.builtin.raw: journalctl -u k3s -n 100 --no-pager
+      register: k3s_logs
+      when: inventory_hostname == k3s_master_ip
+
+    - name: Debug logs
+      ansible.builtin.debug:
+        var: k3s_logs.stdout_lines
+      when: inventory_hostname == k3s_master_ip
+
     - name: Esperar a que K3s esté activo
       ansible.builtin.raw: |
-        timeout=180
-        until systemctl is-active k3s >/dev/null 2>&1 || [ $timeout -le 0 ]; do
+        timeout=120
+        while ! systemctl is-active k3s >/dev/null 2>&1 && [ $timeout -gt 0 ]; do
           echo "Esperando a que K3s esté activo... ($timeout s restantes)"
           sleep 5
           timeout=$((timeout-5))
         done
         [ $timeout -le 0 ] && echo "Timeout" && exit 1 || true
-      when: inventory_hostname == k3s_master_ip
-
-    - name: Esperar salud del API Server
-      ansible.builtin.uri:
-        url: "https://{{ vip_ip }}:6443/healthz"
-        validate_certs: no
-        status_code: 200
-      register: result
-      retries: 30
-      delay: 10
-      until: result.status == 200
       when: inventory_hostname == k3s_master_ip
 
     - name: Esperar que el token del master esté disponible
@@ -143,11 +142,11 @@
         EOF
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_master_ip
 
-    - name: Iniciar K3s en nodos masters secundarios
+    - name: Iniciar K3s en todos los masters (gracias a ip_nonlocal_bind)
       ansible.builtin.raw: |
         systemctl daemon-reload
         systemctl enable k3s
-        systemctl start k3s
+        systemctl restart k3s
         systemctl is-active k3s
       register: k3s_join_start
       when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_master_ip
