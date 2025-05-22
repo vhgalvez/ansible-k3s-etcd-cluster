@@ -102,6 +102,12 @@
         msg: "K3s Token: {{ k3s_token_output.stdout | trim }}"
       run_once: true
 
+    - name: Permitir binding en IPs no locales (ip_nonlocal_bind)
+      ansible.builtin.raw: |
+        sysctl -w net.ipv4.ip_nonlocal_bind=1
+        echo "net.ipv4.ip_nonlocal_bind=1" > /etc/sysctl.d/99-k3s.conf
+      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_master_ip
+
     - name: Configurar nodos masters secundarios
       ansible.builtin.raw: |
         cat <<EOF > /etc/systemd/system/k3s.service
