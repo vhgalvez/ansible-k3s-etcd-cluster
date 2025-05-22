@@ -46,13 +46,7 @@
         Type=notify
         ExecStartPre=-/sbin/modprobe br_netfilter
         ExecStartPre=-/sbin/modprobe overlay
-        ExecStart=/opt/bin/k3s server \
-          --cluster-init \
-          --tls-san {{ vip_ip }} \
-          --node-ip {{ ansible_host }} \
-          --advertise-address {{ ansible_host }} \
-          --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
-          --write-kubeconfig-mode 644
+        ExecStart=/opt/bin/k3s server --cluster-init --tls-san {{ vip_ip }} --node-ip {{ ansible_host }} --advertise-address {{ ansible_host }} --write-kubeconfig /etc/rancher/k3s/k3s.yaml --write-kubeconfig-mode 644
         Restart=always
         KillMode=process
         Delegate=yes
@@ -125,11 +119,7 @@
         Type=notify
         ExecStartPre=-/sbin/modprobe br_netfilter
         ExecStartPre=-/sbin/modprobe overlay
-        ExecStart=/opt/bin/k3s server \
-          --server https://{{ vip_ip }}:6443 \
-          --token {{ k3s_token.stdout }} \
-          --tls-san {{ vip_ip }} \
-          --node-name {{ inventory_hostname }}
+        ExecStart=/opt/bin/k3s server --server https://{{ vip_ip }}:6443 --token {{ k3s_token.stdout }} --tls-san {{ vip_ip }} --node-name {{ inventory_hostname }}
         Restart=always
         KillMode=process
         Delegate=yes
@@ -171,10 +161,7 @@
 
         [Service]
         Type=exec
-        ExecStart=/opt/bin/k3s agent \
-          --server https://{{ vip_ip }}:6443 \
-          --token {{ k3s_token.stdout }} \
-          --node-ip {{ ansible_host }}
+        ExecStart=/opt/bin/k3s agent --server https://{{ vip_ip }}:6443 --token {{ k3s_token.stdout }} --node-ip {{ ansible_host }}
         Restart=always
         LimitNOFILE=1048576
         LimitNPROC=1048576
