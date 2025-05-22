@@ -5,7 +5,7 @@
   gather_facts: no
 
   vars:
-    k3s_url_binary: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
+    k3s_url: "https://github.com/k3s-io/k3s/releases/latest/download/k3s"
     k3s_token_path: "/var/lib/rancher/k3s/server/node-token"
     vip_ip: "10.17.5.10"
     k3s_master_ip: "10.17.4.21"
@@ -16,14 +16,14 @@
         mkdir -p /opt/bin /etc/rancher/k3s /var/lib/rancher/k3s/server
       when: inventory_hostname in groups['masters'] + groups['longhorn_nodes']
 
-    - name: Descargar e instalar K3s binario
+    - name: Descargar e instalar K3s
       ansible.builtin.raw: |
-        curl -Lo /opt/bin/k3s "{{ k3s_url_binary }}" && chmod +x /opt/bin/k3s
+        curl -Lo /opt/bin/k3s "{{ k3s_url }}" && chmod +x /opt/bin/k3s
       args:
         timeout: 600
       when: inventory_hostname in groups['masters'] + groups['longhorn_nodes']
 
-    - name: Verificar que el binario no está en uso (Solo para el primer master)
+    - name: Verificar que el binario no está en uso
       ansible.builtin.raw: fuser -k /opt/bin/k3s || true
       when: inventory_hostname == k3s_master_ip
 
@@ -101,3 +101,97 @@
       debug:
         msg: "K3s Token: {{ k3s_token_output.stdout | trim }}"
       run_once: true
+
+    - name: Configurar nodos masters secundarios
+      ansible.builtin.raw: |
+        cat <<EOF > /etc/systemd/system/k3s.service
+        [Unit]
+        Description=Lightweight Kubernetes
+        Wants=network-online.target
+        After=network-online.target
+
+        [Service]
+        Type=notify
+        ExecStartPre=-/sbin/modprobe br_netfilter
+        ExecStartPre=-/sbin/modprobe overlay
+        ExecStart=/opt/bin/k3s server --server https://{{ vip_ip }}:6443 --token {{ k3s_token_output.stdout | trim }} --tls-san {{ vip_ip }} --node-name {{ inventory_hostname }} --node-ip {{ ansible_host }}
+        Restart=always
+        KillMode=process
+        Delegate=yes
+        LimitNOFILE=1048576
+        LimitNPROC=infinity
+        LimitCORE=infinity
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_master_ip
+
+    - name: Iniciar K3s en todos los masters secundarios
+      ansible.builtin.raw: |
+        systemctl daemon-reload
+        systemctl enable k3s
+        systemctl start k3s
+      register: k3s_join_start_result
+      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_master_ip
+
+    - name: Esperar que K3s esté activo (masters secundarios)
+      ansible.builtin.raw: |
+        timeout=120
+        while ! systemctl is-active k3s >/dev/null 2>&1 && [ $timeout -gt 0 ]; do
+          echo "Esperando a que K3s esté activo... ($timeout s restantes)"
+          sleep 5
+          timeout=$((timeout-5))
+        done
+        systemctl is-active k3s || (journalctl -xeu k3s --no-pager -n 100 && exit 1)
+      when: inventory_hostname in groups['masters'] and inventory_hostname != k3s_master_ip
+
+    - name: Configurar nodos longhorn/workers
+      ansible.builtin.raw: |
+        cat <<EOF > /etc/systemd/system/k3s-agent.service
+        [Unit]
+        Description=Lightweight Kubernetes Node
+        After=network-online.target
+
+        [Service]
+        Type=exec
+        ExecStart=/opt/bin/k3s agent --server https://{{ vip_ip }}:6443 --token {{ k3s_token_output.stdout | trim }} --node-ip {{ ansible_host }}
+        Restart=always
+        LimitNOFILE=1048576
+        LimitNPROC=1048576
+        LimitCORE=infinity
+
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+      when: inventory_hostname in groups['longhorn_nodes']
+
+    - name: Iniciar K3s-agent en nodos longhorn/workers
+      ansible.builtin.raw: |
+        systemctl daemon-reload
+        systemctl enable k3s-agent
+        systemctl start k3s-agent
+      register: k3s_agent_start_result
+      when: inventory_hostname in groups['longhorn_nodes']
+
+    - name: Esperar que k3s-agent esté activo
+      ansible.builtin.raw: |
+        timeout=120
+        while ! systemctl is-active k3s-agent >/dev/null 2>&1 && [ $timeout -gt 0 ]; do
+          echo "Esperando K3s-agent (estado actual: $(systemctl show -p SubState --value k3s-agent))"
+          sleep 5
+          timeout=$((timeout-5))
+        done
+        systemctl is-active k3s-agent || (journalctl -xeu k3s-agent --no-pager -n 100 && exit 1)
+      when: inventory_hostname in groups['longhorn_nodes']
+
+    - name: Configurar kubeconfig en todos los nodos relevantes
+      ansible.builtin.raw: |
+        if [ -f /etc/rancher/k3s/k3s.yaml ]; then
+          mkdir -p /home/core/.kube && \
+          cp /etc/rancher/k3s/k3s.yaml /home/core/.kube/config && \
+          sed -i 's/127.0.0.1/{{ vip_ip }}/g' /home/core/.kube/config && \
+          chown core:core /home/core/.kube/config && \
+          chmod 644 /home/core/.kube/config
+        fi
+      when: inventory_hostname in groups['masters'] or inventory_hostname in groups['longhorn_nodes']
