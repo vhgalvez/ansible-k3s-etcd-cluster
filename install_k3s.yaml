@@ -1,4 +1,5 @@
 # install_k3s.yaml
+# install_k3s.yaml
 - name: Instalar y Configurar K3s con alta disponibilidad (etcd) en el Clúster
   hosts: all
   become: true
@@ -81,6 +82,17 @@
           timeout=$((timeout-5))
         done
         [ $timeout -le 0 ] && echo "Timeout: K3s no está activo" && exit 1 || true
+      when: inventory_hostname == k3s_master_ip
+
+    - name: Esperar que la API K3s esté disponible a través de la VIP
+      wait_for:
+        host: "{{ vip_ip }}"
+        port: 6443
+        timeout: 300
+        state: started
+        delay: 10
+      delegate_to: localhost
+      run_once: true
       when: inventory_hostname == k3s_master_ip
 
     - name: Esperar que el token del master esté disponible
