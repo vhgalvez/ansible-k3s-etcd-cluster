@@ -1,0 +1,184 @@
+[33mab72c65[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Update install_k3s.yaml
+[33m63bd074[m Update install_k3s.yaml
+[33m348c226[m Update install_k3s.yaml
+[33m579cd53[m Update install_k3s.yaml
+[33mdc6ed9f[m Update install_k3s.yaml
+[33ma10325b[m Update install_k3s.yaml
+[33maf5aef5[m Update install_k3s.yaml
+[33md670e66[m Update install_k3s.yaml
+[33m824d7d9[m Update install_k3s.yaml
+[33m1085f21[m Update install_k3s.yaml
+[33m84522a0[m Update install_k3s.yaml
+[33m0c178de[m Update install_k3s.yaml
+[33me50ec76[m Update install_k3s.yaml
+[33m635fc59[m update
+[33mca5f5f8[m update
+[33m8224df3[m Create ansible.cfg
+[33meae0fe0[m Update install_k3s.yaml
+[33mdcb70e4[m Update inventory.ini
+[33mf685488[m Update install_k3s.yaml
+[33mc9131e1[m Update install_k3s.yaml
+[33mdd2670f[m Update inventory.ini
+[33ma6f6207[m Update inventory.ini
+[33m5c57c45[m Update inventory.ini
+[33mbd11f79[m Update install_k3s.yaml
+[33m03cf30a[m Update install_k3s.yaml
+[33m108dac8[m Update install_k3s.yaml
+[33m5777a3b[m Update install_k3s.yaml
+[33ma6e4a05[m Update inventory.ini
+[33m1e08769[m Update install_k3s.yaml
+[33m3bedd91[m Update install_k3s.yaml
+[33m2f1c133[m update - error conection
+[33m7fa7cc5[m ip vip
+[33m79f65c0[m Delete update_k3s_api_vip.yaml
+[33m25de357[m Update update_k3s_api_vip.yaml
+[33mae673ce[m Update update_k3s_api_vip.yaml
+[33m450e83d[m Update update_k3s_api_vip.yaml
+[33mfc64853[m Update update_k3s_api_vip.yaml
+[33m21bf4d1[m Update update_k3s_api_vip.yaml
+[33ma7757e2[m Update update_k3s_api_vip.yaml
+[33m571ce5b[m Update update_k3s_api_vip.yaml
+[33m0f98a2d[m Update update_k3s_api_vip.yaml
+[33m3d4386b[m Update update_k3s_api_vip.yaml
+[33mb04546a[m Update update_k3s_api_vip.yaml
+[33me98fe04[m update - k3s cluster
+[33m86c67bd[m Create install_k3s_04_ok.yaml
+[33m1cc98e9[m Update update_k3s_api_vip.yaml
+[33m8ed48a0[m update
+[33m074e783[m Update Keepalived_vip.yaml
+[33meddc085[m Update Keepalived_vip.yaml
+[33m7f83cfd[m Update Keepalived_vip.yaml
+[33m2da47aa[m Update Keepalived_vip.yaml
+[33mc0f8e06[m Update Keepalived_vip.yaml
+[33m339ad40[m Update Keepalived_vip.yaml
+[33m4fc39cb[m Create Keepalived_vip.yaml
+[33m43699d2[m Update install_k3s.yaml
+[33m1874089[m Update install_k3s.yaml
+[33m75edc36[m Update install_k3s.yaml
+[33mc30cfcc[m Update install_k3s.yaml
+[33m08f3888[m update
+[33m7d509e1[m update
+[33mb09cf31[m Update install_k3s.yaml
+[33m3ae6f71[m Update install_k3s.yaml
+[33mef11fac[m Update install_k3s.yaml
+[33ma5b614a[m Update inventory.ini
+[33ma959711[m Update inventory.ini
+[33mf70dc44[m Update inventory.ini
+[33m6aa9e6d[m Update inventory.ini
+[33mcd39c84[m Update install_k3s.yaml
+[33m465fb74[m Update install_k3s.yaml
+[33m225541a[m Update install_k3s.yaml
+[33mafa137d[m Create LICENSE
+[33m172282a[m Update README.md
+[33m7c5d564[m Update install_k3s.yaml
+[33m3c3957e[m Update inventory.ini
+[33m36a1775[m Update inventory.ini
+[33m39e220e[m Update install_k3s.yaml
+[33m192a383[m update
+[33m7317bd5[m Update install_k3s.yaml
+[33m65a0454[m Update install_k3s.yaml
+[33mde669e3[m update
+[33m3c45692[m update
+[33m1be16c2[m Update install_k3s.yaml
+[33m593f0f7[m Update install_k3s.yaml
+[33me2a3c92[m update ip
+[33m1080fa0[m Update install_k3s.md
+[33m05bdfc6[m Update inventory.ini
+[33mcec09ca[m Update inventory.ini
+[33me529b21[m Update install_k3s.md
+[33m28ea694[m update
+[33m1420049[m update png
+[33m089614c[m storage1 k3s install
+[33m2af4dd7[m Update inventory.ini
+[33m45582f4[m Update inventory.ini
+[33m5475391[m Update install_k3s.yaml
+[33me909eee[m Update k3s_agent.service.j2
+[33m82969e0[m Update install_k3s.yaml
+[33me78254e[m  Crear directorio .kube en los nodos trabajadores
+[33m1debe83[m Update install_k3s.yaml
+[33mcf6124f[m Update install_k3s.yaml
+[33m4b8ad44[m Update install_k3s.yaml
+[33mc3789ff[m Update install_k3s.yaml
+[33ma5a41d5[m Update install_k3s.yaml
+[33m647706c[m update
+[33m3ae80ee[m Ready master1 master 2 master 3
+[33m1187ce7[m Update README.md
+[33m02c1473[m Update README.md
+[33m2670578[m Update README.md
+[33m43be28d[m update
+[33m142a146[m update
+[33m64f2a2d[m Update README.md
+[33m52f5a9e[m Update install_k3s.md
+[33md26c323[m Update install_k3s.md
+[33mbd5ed47[m Update install_k3s.md
+[33me11f58c[m copy  key
+[33mfe9953d[m Update install_k3s.yaml
+[33m9e02c1b[m configuracion de nodos Workers
+[33mabe8d2a[m Update install_k3s.yaml
+[33m51d31c3[m nodos master2-3
+[33m86fa4c0[m Update install_k3s.yaml
+[33m6f4c5e1[m Update install_k3s.yaml
+[33m5822e99[m update
+[33m93660de[m update
+[33m46fecd0[m Update install_k3s.yaml
+[33m4c5a0ae[m Update install_k3s.yaml
+[33m6ebce57[m update
+[33m78dc3ce[m Update install_k3s.yaml
+[33m1f79b8c[m Update install_k3s.yaml
+[33mae92793[m Update install_k3s.yaml
+[33m2076aca[m Update install_k3s.yaml
+[33mf9d9bed[m update
+[33mc010c96[m Update install.md
+[33m6b760c6[m Update install.md
+[33m216c608[m Update inventory.ini
+[33me0cbd59[m Update inventory.ini
+[33m869b129[m update
+[33m564fd24[m Update install_k3s.md
+[33m9cd08d4[m Create install_k3s.md
+[33m6c2a2b5[m update
+[33m3bacb03[m Update install_k3s.yaml
+[33mf1b8fd4[m Update install_k3s.yaml
+[33m59fe0a4[m Update install_k3s.yaml
+[33m33da0e8[m Create install.md
+[33m6149a0c[m Update install_k3s.yaml
+[33m06c08fd[m Update README.md
+[33m4c07373[m Update inventory.ini
+[33m79edc6a[m Update install_k3s.yaml
+[33md214fed[m update
+[33m8228fd5[m Update install_k3s.yaml
+[33m8733e57[m Update install_k3s.yaml
+[33ma1d27ce[m update
+[33m53501d1[m Update inventory.ini
+[33m95079c8[m Update inventory.ini
+[33mac0267b[m Update install_k3s.yaml
+[33m78679fe[m Update install_k3s.yaml
+[33mde0c93e[m Update inventory.ini
+[33m7055427[m Update install_k3s.yaml
+[33m26059db[m Update install_k3s.yaml
+[33m8110eac[m Update install_k3s.yaml
+[33m0ce245b[m Update install_k3s.yaml
+[33m210f224[m Update install_k3s.yaml
+[33m3297bfa[m Update inventory.ini
+[33m5a29256[m Update inventory.ini
+[33m93d3956[m update
+[33mfba818a[m Update k3s_master.service.j2
+[33m978c467[m Update install_k3s.yaml
+[33m59622c2[m Update install_k3s.yaml
+[33m51e8ace[m update
+[33mcc92ac6[m update
+[33m315f449[m Update install_k3s.yaml
+[33m849eb38[m Update install_k3s.yaml
+[33m9e291c3[m Update install_k3s.yaml
+[33m8e15b25[m Create cluster_k3s.png
+[33m181d26e[m Update inventory.ini
+[33mf7fbc04[m Update install_k3s.yaml
+[33m013a0aa[m Update inventory.ini
+[33m4d4a0d3[m Update install_k3s.yaml
+[33mca23b04[m Update README.md
+[33m7c49315[m Update install_k3s.yaml
+[33mcd1ece7[m Update inventory.ini
+[33md20e92c[m update
+[33m721b595[m Update README.md
+[33mcb388e2[m update
+[33m6a813dd[m update
+[33m13c5670[m Initial commit
