@@ -1,5 +1,4 @@
 # install_k3s.yaml
-# install_k3s.yaml
 - name: Instalar y Configurar K3s con alta disponibilidad (etcd) en el Clúster
   hosts: all
   become: true
