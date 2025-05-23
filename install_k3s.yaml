@@ -134,7 +134,7 @@
           --server https://{{ vip_ip }}:6443 \
           --token {{ k3s_token_output.stdout | trim }} \
           --tls-san {{ vip_ip }} \
-          --node-name {{ inventory_hostname }} \
+          --node-name $(hostname -f) \
           --node-ip {{ ansible_host }}
         Restart=always
         KillMode=process
