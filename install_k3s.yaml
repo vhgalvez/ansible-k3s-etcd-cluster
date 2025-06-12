@@ -53,7 +53,8 @@
           --node-ip {{ ansible_host }} \
           --advertise-address {{ ansible_host }} \
           --write-kubeconfig /etc/rancher/k3s/k3s.yaml \
-          --write-kubeconfig-mode 644
+          --write-kubeconfig-mode 644 \
+          --disable traefik
         Restart=always
         KillMode=process
         Delegate=yes
@@ -114,7 +115,7 @@
       run_once: true
       changed_when: false
 
-    - name: Depurar el token obtenido (para verificacion)
+    - name: Depurar el token obtenido (para verificación)
       debug:
         msg: "K3s Token: {{ k3s_token_output.stdout | trim }}"
       run_once: true
@@ -136,7 +137,8 @@
           --token {{ k3s_token_output.stdout | trim }} \
           --tls-san {{ vip_ip }} \
           --node-name $(hostname -f) \
-          --node-ip {{ ansible_host }}
+          --node-ip {{ ansible_host }} \
+          --disable traefik
         Restart=always
         KillMode=process
         Delegate=yes
