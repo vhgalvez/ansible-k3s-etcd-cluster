@@ -1,64 +1,55 @@
 # 00_check_nodes_ready.yml
+---
 - name: 🔍 Verificar que todos los nodos están listos para instalar K3s
   hosts: all
-  become: true
-  gather_facts: no
-
-  vars:
-    github_dns_target: "github.com"
-    github_https_target: "https://objects.githubusercontent.com"
+  gather_facts: false
+  become: false
 
   tasks:
+
     - name: 🧪 Verificar conectividad SSH (puerto 22)
       wait_for:
         host: "{{ inventory_hostname }}"
         port: 22
         timeout: 5
       delegate_to: localhost
-      register: ssh_result
-      failed_when: false
-      changed_when: false
 
     - name: 🛣️ Verificar ruta por defecto (gateway)
-      shell: ip route show | grep -q '^default'
-      register: route_check
-      failed_when: false
+      raw: ip route show default || true
+      register: default_route_check
       changed_when: false
 
-    - name: 🌐 Probar resolución DNS de {{ github_dns_target }}
-      shell: dig +short {{ github_dns_target }}
+    - name: 🌐 Probar resolución DNS de github.com
+      raw: getent hosts github.com || true
       register: dns_check
-      failed_when: false
       changed_when: false
 
-    - name: 🔗 Probar conexión HTTPS a {{ github_https_target }}
-      shell: curl -sI {{ github_https_target }}
-      register: curl_check
-      failed_when: false
+    - name: 🔗 Probar conexión HTTPS a https://objects.githubusercontent.com
+      raw: curl -s --max-time 5 https://objects.githubusercontent.com/ || true
+      register: https_check
       changed_when: false
 
     - name: 🔧 Evaluar si el nodo está listo
       set_fact:
         node_ready: >-
-          {{
-            (ssh_result is succeeded) and
-            (route_check.rc == 0) and
-            (dns_check.get('stdout', '') | length > 0) and
-            (curl_check.rc == 0)
-          }}
+          {{ (
+            ('default' in default_route_check.stdout | default('')) and
+            ('github.com' in dns_check.stdout | default('')) and
+            (https_check.stdout | length > 0)
+          ) | bool }}
 
     - name: 📊 Reporte del estado del nodo
       debug:
         msg: |
           🚀 Nodo: {{ inventory_hostname }}
-          SSH accesible: {{ '✅' if ssh_result is succeeded else '❌' }}
-          Ruta por defecto: {{ '✅' if route_check.rc == 0 else '❌' }}
-          DNS resuelve {{ github_dns_target }}: {{ '✅' if dns_check.get('stdout', '') | length > 0 else '❌' }}
-          HTTPS {{ github_https_target }}: {{ '✅' if curl_check.rc == 0 else '❌' }}
+          SSH accesible: ✅
+          Ruta por defecto: {{ '✅' if 'default' in default_route_check.stdout | default('') else '❌' }}
+          DNS resuelve github.com: {{ '✅' if 'github.com' in dns_check.stdout | default('') else '❌' }}
+          HTTPS https://objects.githubusercontent.com: {{ '✅' if https_check.stdout | length > 0 else '❌' }}
 
     - name: 🟢 Nodo listo para instalar K3s
       debug:
-        msg: "✅ Nodo {{ inventory_hostname }} listo para instalar K3s."
+        msg: "🟢 Nodo {{ inventory_hostname }} está listo para instalar K3s ✅"
       when: node_ready
 
     - name: ⚠️ Advertencia si el nodo NO está completamente listo
