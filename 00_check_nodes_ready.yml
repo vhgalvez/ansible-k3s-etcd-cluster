@@ -1,0 +1,66 @@
+# 00_check_nodes_ready.yml
+- name: 🔍 Verificar que todos los nodos están listos para instalar K3s
+  hosts: all
+  become: true
+  gather_facts: no
+
+  vars:
+    github_dns_target: "github.com"
+    github_https_target: "https://objects.githubusercontent.com"
+
+  tasks:
+    - name: 🧪 Verificar conectividad SSH (puerto 22)
+      wait_for:
+        host: "{{ inventory_hostname }}"
+        port: 22
+        timeout: 5
+      delegate_to: localhost
+      register: ssh_result
+      failed_when: false
+      changed_when: false
+
+    - name: 🛣️ Verificar ruta por defecto (gateway)
+      shell: ip route show | grep -q '^default'
+      register: route_check
+      failed_when: false
+      changed_when: false
+
+    - name: 🌐 Probar resolución DNS de {{ github_dns_target }}
+      shell: dig +short {{ github_dns_target }}
+      register: dns_check
+      failed_when: false
+      changed_when: false
+
+    - name: 🔗 Probar conexión HTTPS a {{ github_https_target }}
+      shell: curl -sI {{ github_https_target }}
+      register: curl_check
+      failed_when: false
+      changed_when: false
+
+    - name: 📊 Reporte final del nodo
+      debug:
+        msg: |
+          🚀 Nodo: {{ inventory_hostname }}
+          SSH accesible: {{ '✅' if ssh_result is succeeded else '❌' }}
+          Ruta por defecto: {{ '✅' if route_check.rc == 0 else '❌' }}
+          DNS resuelve {{ github_dns_target }}: {{ '✅' if dns_check.stdout | length > 0 else '❌' }}
+          HTTPS {{ github_https_target }}: {{ '✅' if curl_check.rc == 0 else '❌' }}
+
+    - name: 🟢 Marcar nodo como listo si todo OK
+      debug:
+        msg: "✅ Nodo {{ inventory_hostname }} listo para instalar K3s."
+      when:
+        - ssh_result is succeeded
+        - route_check.rc == 0
+        - dns_check.stdout | length > 0
+        - curl_check.rc == 0
+
+    - name: ⚠️ Advertencia si el nodo NO está listo
+      debug:
+        msg: "⚠️ Nodo {{ inventory_hostname }} NO está completamente listo. Verifica red, DNS o salida HTTPS."
+      when: not (
+        ssh_result is succeeded and
+        route_check.rc == 0 and
+        dns_check.stdout | length > 0 and
+        curl_check.rc == 0
+      )
