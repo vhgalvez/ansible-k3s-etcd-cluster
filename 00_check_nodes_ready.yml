@@ -37,7 +37,16 @@
       failed_when: false
       changed_when: false
 
-    - name: 📊 Reporte final del nodo
+    - name: 🔧 Evaluar si el nodo está listo
+      set_fact:
+        node_ready: "{{ 
+          ssh_result is succeeded and
+          route_check.rc == 0 and
+          dns_check.stdout | length > 0 and
+          curl_check.rc == 0
+        }}"
+
+    - name: 📊 Reporte del estado del nodo
       debug:
         msg: |
           🚀 Nodo: {{ inventory_hostname }}
@@ -46,21 +55,12 @@
           DNS resuelve {{ github_dns_target }}: {{ '✅' if dns_check.stdout | length > 0 else '❌' }}
           HTTPS {{ github_https_target }}: {{ '✅' if curl_check.rc == 0 else '❌' }}
 
-    - name: 🟢 Marcar nodo como listo si todo OK
+    - name: 🟢 Nodo listo para instalar K3s
       debug:
         msg: "✅ Nodo {{ inventory_hostname }} listo para instalar K3s."
-      when:
-        - ssh_result is succeeded
-        - route_check.rc == 0
-        - dns_check.stdout | length > 0
-        - curl_check.rc == 0
+      when: node_ready
 
-    - name: ⚠️ Advertencia si el nodo NO está listo
+    - name: ⚠️ Advertencia si el nodo NO está completamente listo
       debug:
         msg: "⚠️ Nodo {{ inventory_hostname }} NO está completamente listo. Verifica red, DNS o salida HTTPS."
-      when: not (
-        ssh_result is succeeded and
-        route_check.rc == 0 and
-        dns_check.stdout | length > 0 and
-        curl_check.rc == 0
-      )
+      when: not node_ready
