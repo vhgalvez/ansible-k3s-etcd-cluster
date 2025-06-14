@@ -58,6 +58,12 @@ Ejemplo de `inventory.ini`:
    
 3. Ejecuta el Playbook: Despliega K3s y configura el clúster con:
    
+   - validar que los nodos estén listos antes de la instalación:
+   ```bash
+   sudo ansible-playbook -i inventory.ini 00_check_nodes_ready.yml
+   ```
+4. Instala K3s en los nodos maestros y trabajadores:
+
    ```bash
    sudo ansible-playbook -i inventory.ini install_k3s.yaml
    ```
