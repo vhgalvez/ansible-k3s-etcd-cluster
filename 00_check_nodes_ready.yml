@@ -39,12 +39,13 @@
 
     - name: 🔧 Evaluar si el nodo está listo
       set_fact:
-        node_ready: "{{ 
-          ssh_result is succeeded and
-          route_check.rc == 0 and
-          dns_check.stdout | length > 0 and
-          curl_check.rc == 0
-        }}"
+        node_ready: >-
+          {{
+            (ssh_result is succeeded) and
+            (route_check.rc == 0) and
+            (dns_check.get('stdout', '') | length > 0) and
+            (curl_check.rc == 0)
+          }}
 
     - name: 📊 Reporte del estado del nodo
       debug:
@@ -52,7 +53,7 @@
           🚀 Nodo: {{ inventory_hostname }}
           SSH accesible: {{ '✅' if ssh_result is succeeded else '❌' }}
           Ruta por defecto: {{ '✅' if route_check.rc == 0 else '❌' }}
-          DNS resuelve {{ github_dns_target }}: {{ '✅' if dns_check.stdout | length > 0 else '❌' }}
+          DNS resuelve {{ github_dns_target }}: {{ '✅' if dns_check.get('stdout', '') | length > 0 else '❌' }}
           HTTPS {{ github_https_target }}: {{ '✅' if curl_check.rc == 0 else '❌' }}
 
     - name: 🟢 Nodo listo para instalar K3s
